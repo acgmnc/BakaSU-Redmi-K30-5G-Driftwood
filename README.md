@@ -124,6 +124,30 @@ aarch64-linux-gnu binutils（工具链通常自带）
   WiFi、移动网络、显示均正常。
 - 该内核面向 picasso 的 A11/A12 ROM；不同 MIUI 小版本请自行验证。
 
+### 已知问题：MIUI 上的偶发软重启
+
+**现象**：开机进入桌面几分钟后，系统卡住 → 屏幕回到开机 logo → 再次进入桌面。每次手动重启后会再出现一次，之后同一轮开机内不再复现。
+
+**触发条件**：MIUI 13 及以上几乎是必然触发；**Android 12 / MIUI 14 上属于偶发**。同一内核在类原生 ROM 上不出现。
+
+**目前状态**：这是 Driftwood 系列内核运行在 MIUI 上的已知兼容性问题，尚未定位到确切根因。
+已排除的因素：
+
+| 怀疑点 | 结论 |
+|---|---|
+| `init` / `vendor_init` SIGABRT | 原厂内核同样存在，是 MIUI 正常行为 |
+| 传感器 HAL 故障 | `dumpsys sensorservice` 显示 36 个传感器正常 |
+| 内存压力 / lmkd | 可用内存 2.6 GB，无击杀记录 |
+| 音频模块缺失 | 音频功能实测正常（驱动已编入内核本体） |
+
+**最可能的背景因素**：本内核版本为 `4.19.157`，而 `/vendor/lib/modules` 下 46 个厂商模块是按原厂
+`4.19.113-perf-ga1b60ef832fb` 编译的，vermagic 不匹配导致**一个模块都加载不了**
+（`/proc/modules` 为空）。MIUI 的 `ANDR-PERF-RESOURCEQS`、`ACDB-LOADER` 等 HAL 会因此持续报错。
+类原生 ROM 不依赖这些模块，所以不受影响。
+
+如需进一步排查，可用仓库外的 `capture-softreboot.ps1` 脚本在软重启发生时抓取 logcat，
+判断是 Java 层看门狗（日志中有 `WATCHDOG`）还是内核 panic（日志突然断流、无任何关机记录）。
+
 ---
 
 ## 自动同步上游 KernelSU
