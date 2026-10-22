@@ -1,0 +1,7 @@
+*.o
+*.a
+*.ko
+*.cmd
+*.tmp
+build/
+out/
