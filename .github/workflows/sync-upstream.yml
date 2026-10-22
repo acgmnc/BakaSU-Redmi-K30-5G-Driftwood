@@ -1,0 +1,212 @@
+name: Sync SukiSU-Ultra upstream
+
+# 每周一 04:00 UTC 检查 SukiSU-Ultra builtin 分支是否有新提交。
+# 有更新时：拉上游 kernel/ -> 应用本地 4.19 兼容补丁 -> 推到 upstream-sync 分支 -> 开 PR。
+# 补丁冲突时：不提交任何东西，开 issue 报冲突，main 分支不受影响。
+#
+# CI 只能证明「补丁打得干净」，无法证明「内核能开机」。
+# 合并前必须本地编译 + 真机刷入验证。
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_URL: https://github.com/SukiSU-Ultra/SukiSU-Ultra.git
+  UPSTREAM_BRANCH: builtin
+  SYNC_BRANCH: upstream-sync
+  PATCH_DIR: patches/kernelsu-4.19
+  PR_TEMPLATE: .github/pr-template-sync.md
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve upstream HEAD
+        id: up
+        run: |
+          set -euo pipefail
+          SHA="$(git ls-remote "$UPSTREAM_URL" "refs/heads/$UPSTREAM_BRANCH" | cut -f1)"
+          if [ -z "$SHA" ]; then
+            echo "::error::无法解析上游 $UPSTREAM_BRANCH 分支"
+            exit 1
+          fi
+          CUR="$(tr -d '[:space:]' < upstream.lock 2>/dev/null || true)"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "current=${CUR:-none}" >> "$GITHUB_OUTPUT"
+          if [ "$SHA" = "$CUR" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "上游: $SHA"
+          echo "基线: ${CUR:-none}"
+
+      - name: Upstream unchanged
+        if: steps.up.outputs.changed == 'false'
+        run: echo "上游未变化（${{ steps.up.outputs.sha }}），无需同步。"
+
+      - name: Fetch upstream kernel source
+        if: steps.up.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$UPSTREAM_BRANCH" "$UPSTREAM_URL" /tmp/upstream
+          test -d /tmp/upstream/kernel
+          echo "上游 kernel 文件数: $(find /tmp/upstream/kernel -type f | wc -l)"
+
+      - name: Apply 4.19 compatibility patches
+        id: patch
+        if: steps.up.outputs.changed == 'true'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/staged && mkdir -p /tmp/staged
+          cp -a /tmp/upstream/kernel /tmp/staged/kernel
+          cd /tmp/staged
+
+          shopt -s nullglob
+          patches=("$GITHUB_WORKSPACE/$PATCH_DIR"/*.patch)
+          if [ ${#patches[@]} -eq 0 ]; then
+            echo "::error::$PATCH_DIR 下没有补丁文件"
+            exit 1
+          fi
+
+          failed=0
+          for p in "${patches[@]}"; do
+            name="$(basename "$p")"
+            echo "::group::检查 $name"
+            if patch -p1 --forward --dry-run < "$p"; then
+              echo "--- 应用 $name"
+              patch -p1 --forward < "$p"
+              echo "::endgroup::"
+            else
+              echo "::error file=$PATCH_DIR/$name::$name 无法干净应用"
+              echo "::endgroup::"
+              failed=1
+            fi
+          done
+
+          if [ "$failed" -ne 0 ]; then
+            echo "补丁应用失败，已跳过提交"
+            exit 1
+          fi
+          echo "所有补丁应用成功（${#patches[@]} 个）"
+
+      - name: Report patch conflict
+        if: steps.up.outputs.changed == 'true' && steps.patch.outcome == 'failure'
+        uses: actions/github-script@v7
+        env:
+          UP_SHA: ${{ steps.up.outputs.sha }}
+        with:
+          script: |
+            const sha = process.env.UP_SHA;
+            const short = sha.slice(0, 8);
+            const title = `上游同步冲突：SukiSU builtin @ ${short}`;
+
+            const body = [
+              '自动同步上游失败：**4.19 兼容补丁无法干净应用**。',
+              '',
+              `- 上游分支：\`builtin\``,
+              `- 上游 commit：\`${sha}\``,
+              `- 补丁目录：\`${process.env.PATCH_DIR}\``,
+              `- 失败日志：${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+              '',
+              '这说明上游 KernelSU 的 API 发生了变化（很可能又用了 5.x 才有的东西）。',
+              '本次同步已中止，`kernel/`、`upstream.lock` 和 `main` 均未改动。',
+              '',
+              '**处理方式**',
+              '1. 本地 clone 上游 `builtin` 分支',
+              '2. 逐个套用 `patches/kernelsu-4.19/*.patch`，看是哪个文件冲突',
+              '3. 修正补丁后提交，之后自动同步即可恢复',
+            ].join('\n');
+
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const dup = open.data.find(i => i.title === title);
+            if (dup) {
+              core.info(`已存在同类 issue #${dup.number}，跳过创建`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+              });
+              core.info(`已创建 issue #${created.data.number}`);
+            }
+            core.setFailed('补丁冲突，已创建 issue，请人工处理');
+
+      - name: Commit sync branch
+        if: steps.up.outputs.changed == 'true' && steps.patch.outcome == 'success'
+        env:
+          UP_SHA: ${{ steps.up.outputs.sha }}
+        run: |
+          set -euo pipefail
+          rm -rf kernel
+          cp -a /tmp/staged/kernel kernel
+          printf '%s\n' "$UP_SHA" > upstream.lock
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B "$SYNC_BRANCH"
+          git add -A kernel upstream.lock
+          if git diff --cached --quiet; then
+            echo "内容无变化（上游可能只改了提交元数据），跳过"
+            exit 0
+          fi
+          git commit -m "sync: SukiSU-Ultra builtin @ ${UP_SHA:0:8}" -m "上游 commit: $UP_SHA"
+          git push --force origin "$SYNC_BRANCH"
+
+      - name: Render PR body
+        id: prbody
+        if: steps.up.outputs.changed == 'true' && steps.patch.outcome == 'success'
+        env:
+          UP_SHA: ${{ steps.up.outputs.sha }}
+          PREV_SHA: ${{ steps.up.outputs.current }}
+        run: |
+          set -euo pipefail
+          out=/tmp/pr-body.md
+          sed -e "s|__NEW_SHA__|$UP_SHA|g" \
+              -e "s|__PREV_SHA__|${PREV_SHA:-none}|g" \
+              -e "s|__BRANCH__|$UPSTREAM_BRANCH|g" \
+              "$PR_TEMPLATE" > "$out"
+          echo "path=$out" >> "$GITHUB_OUTPUT"
+          echo "预览:"; head -8 "$out"
+
+      - name: Open or update pull request
+        if: steps.up.outputs.changed == 'true' && steps.patch.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UP_SHA: ${{ steps.up.outputs.sha }}
+        run: |
+          set -euo pipefail
+          TITLE="sync: SukiSU-Ultra upstream ${UP_SHA:0:8}"
+          BODY_FILE="${{ steps.prbody.outputs.path }}"
+
+          NUM="$(gh pr list --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$NUM" ]; then
+            gh pr edit "$NUM" --title "$TITLE" --body-file "$BODY_FILE"
+            echo "已更新现有 PR #$NUM"
+          else
+            gh pr create --base main --head "$SYNC_BRANCH" --title "$TITLE" --body-file "$BODY_FILE"
+          fi

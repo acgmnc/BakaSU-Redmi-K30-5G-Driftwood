@@ -126,6 +126,65 @@ aarch64-linux-gnu binutils（工具链通常自带）
 
 ---
 
+## 自动同步上游 KernelSU
+
+本仓库**不是** SukiSU 的 fork，而是把 KernelSU 实现以「上游快照 + 本地补丁」的形式放在
+`kernel/` 下。因此上游更新走 **分支 + PR** 流程，绝不直接改 `main`。
+
+| 文件 | 作用 |
+|---|---|
+| `upstream.lock` | 记录当前 `kernel/` 对应的 SukiSU `builtin` 分支 commit |
+| `patches/kernelsu-4.19/` | 我们对 KernelSU 的全部本地改动（1 个补丁 / 7 个文件） |
+| `.github/workflows/sync-upstream.yml` | 每周一自动检查并开 PR |
+| `.github/pr-template-sync.md` | PR 正文模板 |
+
+### 流程
+
+```
+每周一 04:00 UTC（或手动 workflow_dispatch）
+        │
+        ├─ 上游 builtin HEAD == upstream.lock ? ── 是 ──> 结束
+        │
+        否
+        │
+        ├─ 拉上游 kernel/ 快照
+        ├─ 逐个应用 patches/kernelsu-4.19/*.patch（先 --dry-run 预检）
+        │
+        ├─ 有冲突 ──> 开 issue 报警，不提交任何东西，main 不受影响
+        │
+        └─ 无冲突 ──> 推到 upstream-sync 分支 ──> 开/更新 PR
+```
+
+手动触发：**Actions → Sync SukiSU-Ultra upstream → Run workflow**。
+
+### 合并前必须人工完成
+
+> **CI 只能证明「补丁打得干净」，无法证明「内核能开机」。**
+
+1. 看 workflow 日志，确认补丁全部干净应用
+2. 本地 `./build.sh` 编译（**必须 clang 15**）
+3. **真机刷入并确认能开机** —— 这一步不能省
+4. 注意 `KSU_VERSION` 随上游 commit 数变化，管理器可能再次提示「需要更新管理器」
+
+### 为什么不做「全自动合并」
+
+- 上游 `builtin` 只是**目前**支持 4.19，随时可能按 5.x 重构
+- 内核「能编译」≠「能开机」：本项目就踩过 clang 17 零错误编译、刷入后 modem 崩溃的坑
+- 自动化替代不了真机验证，所以合并权必须留在人手上
+
+### 上游改动导致补丁冲突时怎么修
+
+```bash
+git clone --depth 1 -b builtin https://github.com/SukiSU-Ultra/SukiSU-Ultra.git /tmp/up
+cp -a /tmp/up/kernel /tmp/staged-kernel && cd /tmp/staged-kernel
+patch -p1 --forward < /path/to/repo/patches/kernelsu-4.19/0001-4.19-compat.patch
+# 看 reject 文件，按 4.19 实际 API 修正后重新生成补丁：
+diff -u /tmp/up/kernel/<file> /tmp/staged-kernel/<file> \
+     --label a/kernel/<file> --label b/kernel/<file>
+```
+
+---
+
 ## 验证记录
 
 在 MIUI 14.0.5.0.SJDCNXM / Android 12 实机验证：
