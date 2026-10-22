@@ -153,6 +153,42 @@ aarch64-linux-gnu binutils（工具链通常自带）
 即：**system_server 的 `android.ui` 线程被阻塞 → Watchdog 超时 → 抓不到堆栈 → 直接 SIGKILL 整个
 system_server → Android 用户空间整体重启。**
 
+#### 真正的根因：传感器 HAL 不响应导致 SensorService 死锁
+
+从 `/data/anr/` 里的 Watchdog 转储（`traces_SystemServer_WDT*`）可以还原出完整死锁链。
+关键证据（native 栈，`system_server` 进程内）：
+
+```
+① 传感器 HAL 不响应
+   进程 android.hardware.sensors@1.0-service 在故障窗口内长时间处于 D 状态
+
+② SensorService 被拖死
+   "SensorService" 线程：
+     SensorService::threadLoop()
+     → SensorDevice::pollHal()
+     → ISensorsWrapperV1_0::poll()            ← 调 HAL 的 poll()，永不返回
+   "Binder:xxxx_x" 线程：
+     BpHwSensors::_hidl_activate()
+     → SensorDevice::activateLocked()
+     → __ioctl                                 ← 等 HAL 回复，卡住
+
+③ UiThread 被这把锁拦住
+   "android.ui" 线程（UiThread）：
+     UiObserverController.dispatchUidsChanged()
+     → SensorService::onUidStateChanged()
+     → SensorService::UidPolicy::onUidActive()
+     → NonPI::MutexLockWithTimeout()           ← 等 SensorService 内部互斥锁（被②持有）
+
+④ Watchdog 探针进不去 → 超时 → SIGKILL
+```
+
+**这里有个容易误判的地方**：Watchdog 转储里 `system_server` 的 **main 线程是完全空闲的**
+（`MessageQueue.nativePollOnce`）。真正被卡住的是独立的 `android.ui`（UiThread）线程——
+Watchdog 监控的正是它，所以看主线程会得出"根本没卡住"的错误结论。
+
+> 注：`SensorService` 本身就运行在 `system_server` 进程内，所以它的死锁会直接拖垮整个
+> system_server，而不是像一个普通应用崩溃那样被隔离。
+
 #### 如何区分"软重启"和真重启
 
 两种情况的屏幕表现几乎一样，但判据完全不同：
@@ -174,10 +210,35 @@ system_server → Android 用户空间整体重启。**
 | load average 由 1.3 飙升至 12.5 | 系统严重饱和（8 核） |
 | `/proc/*/wchan`、`/proc/*/stack` | 无 root 不可读，无法直接定位内核等待点 |
 
-#### 为什么拿不到 ANR 堆栈
+> 补充：故障窗口**之外**抓到的 `/proc/<hal_pid>/stack` 显示的是 `binder_ioctl_write_read`
+> （HAL 主线程正常等活），不能作为证据——必须卡死窗口内（开机后约 75~125 秒）抓取才有意义。
 
-Watchdog 本该把各进程堆栈写入 `/data/anr/`，但被 SELinux 拒绝（见上面的 `avc: denied { signal }`），
-所以最关键的证据缺失。要定位"到底是谁阻塞了 UI 线程"，需要 root 后读取 `/data/anr/`。
+#### 尚未完全确定的部分
+
+链路中"传感器 HAL 为什么不响应"这一环还没拿到内核侧证据。已知：
+
+- HAL 进程在窗口内处于 `D`（不可中断睡眠）状态，说明它卡在某个内核调用里
+- 需要在该窗口内读取 `/proc/<hal_pid>/stack` 才能看到具体的内核函数
+- 可能与厂商内核模块无法加载（见下方"背景因素"）有关，但尚未证实
+
+#### 如何获取 ANR 堆栈
+
+Watchdog 在本问题发生时会**尝试**转储所有进程堆栈，但部分转储会被 SELinux 拒绝
+（见上面的 `avc: denied { signal }`）。尽管如此，**文件确实写出来了**，只是需要 root 才能读：
+
+```bash
+# 需要 root（例如用 MT 管理器 / Termux 的 su）
+ls /data/anr/                       # traces_SystemServer_WDT* 就是每次 Watchdog 的完整转储
+```
+
+文件名格式：`traces_SystemServer_WDT<日>_<月>_<时>_<分>_<秒>.<毫秒>_pid<pid>`，按时间排序即可对照
+软重启发生的时刻。副本可复制到 `/sdcard/` 后用 `adb pull` 取出。
+
+转储内容格式要点：
+
+- 第一行 `Subject: Blocked in handler on ui thread (android.ui)` 指明触发的检测项
+- 之后按线程列出，每个线程含 `state=`、`schedstat`、native 栈 + Java 栈
+- 排查重点是 **`android.ui`（UiThread）线程**，不是 `main` 线程
 
 #### 已排除的因素
 
