@@ -1,0 +1,25 @@
+# 统一换行符为 LF —— 本仓库的脚本/补丁会在 Linux（GitHub Actions）上执行，
+# CRLF 会导致 bash 报 `\r: command not found`、patch 应用失败。
+* text=auto eol=lf
+
+# Shell 脚本 / 补丁 / 工作流必须严格 LF
+*.sh       text eol=lf
+*.patch    text eol=lf
+*.yml      text eol=lf
+*.yaml     text eol=lf
+*.md       text eol=lf
+*.py       text eol=lf
+*.c        text eol=lf
+*.h        text eol=lf
+Makefile   text eol=lf
+Kconfig    text eol=lf
+upstream.lock text eol=lf
+
+# 二进制产物不做任何转换
+*.img      binary
+*.zip      binary
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gz       binary
+*.xz       binary
