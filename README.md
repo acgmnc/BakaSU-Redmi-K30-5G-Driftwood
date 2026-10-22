@@ -126,27 +126,88 @@ aarch64-linux-gnu binutils（工具链通常自带）
 
 ### 已知问题：MIUI 上的偶发软重启
 
-**现象**：开机进入桌面几分钟后，系统卡住 → 屏幕回到开机 logo → 再次进入桌面。每次手动重启后会再出现一次，之后同一轮开机内不再复现。
+**现象**：开机进入桌面几分钟后，屏幕卡住十几秒 → 回到开机 logo → 再次进入桌面。
+每轮开机后最多出现一次，之后不再复现；但手动重启后会再次出现。
 
-**触发条件**：MIUI 13 及以上几乎是必然触发；**Android 12 / MIUI 14 上属于偶发**。同一内核在类原生 ROM 上不出现。
+**触发条件**：MIUI 13 及以上几乎必然触发；**Android 12 / MIUI 14 上属于偶发**。
+同一内核在类原生 ROM 上不出现。
 
-**目前状态**：这是 Driftwood 系列内核运行在 MIUI 上的已知兼容性问题，尚未定位到确切根因。
-已排除的因素：
+#### 已确认的机制：system_server 被 Watchdog 杀掉
+
+> **这不是内核崩溃，是 Android 用户空间的自杀式重启。**
+
+实测抓到的完整链路（两次独立复现，证据一致）：
+
+```
+02:08:55.171  1806  2087 I watchdog: Blocked in handler on ui thread (android.ui)
+02:08:55...   watchdog 尝试用 debuggerd 转储所有进程堆栈
+02:09:0x      libdebuggerd_client: failed to send signal to pid 588: Permission denied
+02:09:0x      watchdog: avc: denied { signal } for comm="watchdog"
+                scontext=u:r:system_server:s0 tcontext=u:r:vendor_hal_keymaster_qti:s0
+02:09:04.637  1806  2087 I Process : Sending signal. PID: 1806 SIG: 9   ← 杀掉 system_server
+02:09:04.8xx  Sensors / AudioFlinger / Gnss / Camera / SurfaceFlinger: service died ...
+              ↓
+        zygote 重启 → system_server 换新 PID → SystemUI 重启 → 回到桌面
+```
+
+即：**system_server 的 `android.ui` 线程被阻塞 → Watchdog 超时 → 抓不到堆栈 → 直接 SIGKILL 整个
+system_server → Android 用户空间整体重启。**
+
+#### 如何区分"软重启"和真重启
+
+两种情况的屏幕表现几乎一样，但判据完全不同：
+
+| 判据 | 含义 |
+|---|---|
+| `/proc/uptime` **归零** | 内核重启（真重启） |
+| `uptime` 连续，但 `pidof zygote64 system_server` **PID 变化** | 用户空间重启（本问题） |
+| 两者都没变 | 只是 UI 卡顿/掉帧 |
+
+本问题属于第二种。另可用 `pidof` 对比 `ps -A -o PID,STIME,NAME` 里的启动时间快速确认。
+
+#### 故障窗口内观察到的异常
+
+| 观察 | 说明 |
+|---|---|
+| `android.hardware.sensors@1.0-service` 主线程 **持续 50 秒处于 `D` 状态** | 卡在内核不可中断调用里，重启后自行恢复 |
+| `[crtc_commit:109]` 长期 `D` 状态 | DRM 显示提交线程阻塞，与"屏幕卡住"现象吻合 |
+| load average 由 1.3 飙升至 12.5 | 系统严重饱和（8 核） |
+| `/proc/*/wchan`、`/proc/*/stack` | 无 root 不可读，无法直接定位内核等待点 |
+
+#### 为什么拿不到 ANR 堆栈
+
+Watchdog 本该把各进程堆栈写入 `/data/anr/`，但被 SELinux 拒绝（见上面的 `avc: denied { signal }`），
+所以最关键的证据缺失。要定位"到底是谁阻塞了 UI 线程"，需要 root 后读取 `/data/anr/`。
+
+#### 已排除的因素
 
 | 怀疑点 | 结论 |
 |---|---|
-| `init` / `vendor_init` SIGABRT | 原厂内核同样存在，是 MIUI 正常行为 |
-| 传感器 HAL 故障 | `dumpsys sensorservice` 显示 36 个传感器正常 |
+| 内核 panic / 硬件看门狗 | 无 panic 记录，`console-ramoops` 里没有 Oops |
+| `init` / `vendor_init` SIGABRT | 原厂内核日志里同样存在，是 MIUI 正常行为 |
+| 传感器 HAL 彻底损坏 | 重启后 `sensorservice` 正常注册，36 个传感器可用 |
 | 内存压力 / lmkd | 可用内存 2.6 GB，无击杀记录 |
 | 音频模块缺失 | 音频功能实测正常（驱动已编入内核本体） |
+| SukiSU hook 干扰 | 停用三处 hook 后现象不变 |
 
-**最可能的背景因素**：本内核版本为 `4.19.157`，而 `/vendor/lib/modules` 下 46 个厂商模块是按原厂
-`4.19.113-perf-ga1b60ef832fb` 编译的，vermagic 不匹配导致**一个模块都加载不了**
-（`/proc/modules` 为空）。MIUI 的 `ANDR-PERF-RESOURCEQS`、`ACDB-LOADER` 等 HAL 会因此持续报错。
-类原生 ROM 不依赖这些模块，所以不受影响。
+#### 背景因素（推测，未证实）
 
-如需进一步排查，可用仓库外的 `capture-softreboot.ps1` 脚本在软重启发生时抓取 logcat，
-判断是 Java 层看门狗（日志中有 `WATCHDOG`）还是内核 panic（日志突然断流、无任何关机记录）。
+本内核版本为 `4.19.157`，而 `/vendor/lib/modules` 下 46 个厂商模块按原厂
+`4.19.113-perf-ga1b60ef832fb` 编译，vermagic 不匹配导致**一个模块都加载不了**
+（`/proc/modules` 为空）。MIUI 的 `ANDR-PERF-RESOURCEQS`、`ACDB-LOADER` 等 HAL 因此持续报错。
+类原生 ROM 不依赖这些模块，这或许能解释"为什么类原生不出现"。
+
+#### 自行排查的建议方法
+
+1. **抓 logcat，但注意 tag 是小写 `watchdog`**（搜大写 `WATCHDOG` 会漏掉）
+2. 崩溃后立刻读内核侧记录（**无需 root**）：
+   ```bash
+   adb shell cat /sys/fs/pstore/console-ramoops-0
+   ```
+   末尾若是 `reboot: Restarting system with command 'userrequested'`，说明是 orderly 重启而非 panic
+3. 同时轮询 `ps -A -T -o PID,TID,STAT,NAME`，观察哪些线程掉进 `D` 状态
+4. 注意 `adb logcat` 的输出**只在进程退出时才刷盘**——设备重启导致 adb 断线时才会写入文件，
+   采样文件显示 0 字节是正常的，不要误以为没在录
 
 ---
 
