@@ -88,6 +88,12 @@ MAKEFLAGS_COMMON=(-j"$JOBS" LLVM=1 LLVM_IAS=1)
 msg "生成 defconfig"
 make "${MAKEFLAGS_COMMON[@]}" "$DEFCONFIG"
 
+# defconfig 里没有 LTO / RELR；只要 PATH 里有 clang+lld，syncconfig 就会按默认值把它们
+# 打开。clang 15 产出的 ThinLTO bitcode 与系统 lld 17 版本不匹配，链接时会直接报
+# "Invalid value reference from metadata"，所以这里显式关掉，和已验证的产物保持一致。
+./scripts/config --file .config -d LTO_CLANG -d RELR
+make "${MAKEFLAGS_COMMON[@]}" olddefconfig
+
 msg "编译内核（Image + dtbo.img）"
 make "${MAKEFLAGS_COMMON[@]}" Image dtbo.img
 
