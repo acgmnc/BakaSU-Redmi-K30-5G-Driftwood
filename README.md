@@ -7,7 +7,7 @@
 |---|---|
 | 内核版本 | `4.19.157-Driftwood-v2.2.1` |
 | 内核基线 | [`HeinUmin/kernel_xiaomi_sm7250`](https://github.com/HeinUmin/kernel_xiaomi_sm7250) `android-4.19` 分支（即 Driftwood 内核源码） |
-| Root 方案 | SukiSU-Ultra **v4.2.1**（`builtin` 分支，Manual Hook 模式） |
+| Root 方案 | SukiSU-Ultra **v4.2.1-r1**（`builtin` 分支 @ `ce75122`，Manual Hook 模式，内核版本号 **41065**） |
 | 编译器 | **ZyC clang 15.0.7** + lld 17.0.6，`LLVM=1 LLVM_IAS=1` |
 | 目标系统 | MIUI 14.0.5.0.SJDCNXM / Android 12（也适用于其他 picasso 的 A11/A12 ROM） |
 | 实测状态 | ✅ 正常开机、✅ Modem/Radio 工作（LTE/中国移动）、✅ KernelSU 显示「工作中」、✅ 连续运行 9 分钟以上无重启 |
@@ -114,10 +114,21 @@ aarch64-linux-gnu binutils（工具链通常自带）
 
 ## 已知说明
 
-- **管理器提示「需要更新管理器」**：内核里的 KernelSU 版本号（41047）比
-  v4.2.1 正式版管理器（40994）新一点，因为本内核从 `builtin` 分支最新提交编译。
-  这是版本号提示，**不影响 root 使用**。若想消除提示，可把
-  `kernel/Makefile` 里的 `KSU_VERSION` 固定为 `40994` 后重编内核。
+- **管理器提示「需要更新管理器」**：KernelSU 的版本号不是写死的，上游
+  `kernel/Makefile` 用 `40000 + 上游 main 分支提交数 - 2815` 计算。当前内核
+  固定为 **41065**（对应上游 main 第 3880 个提交，2026-10-24 构建），而
+  v4.2.1 正式版管理器是 40994、最新的 manager-ci 是 41064，所以管理器可能
+  提示「需要更新管理器」。这是版本号提示，**不影响 root 使用**。想消除提示，
+  把 `kernel/Makefile` 里的 `KSU_VERSION` 改成与手上管理器一致的数值后重编即可
+  （旧版做法是固定成 `40994`）。
+- **ksud 拿不到驱动 fd → 新管理器授权 root 报错（已修）**：这棵 4.19 树原先只接了
+  execve / faccessat / stat 三处 hook，`kernel/reboot.c` 里的 `sys_reboot` hook 没接，
+  `ksu_handle_sys_reboot()` 虽然编译进内核却从未被调用。结果是 `ksud` 取不到 KSU
+  驱动 fd（日志里是 `could not retrieve kernelsu driver fd`），
+  v4.2.1-r1（41049）管理器把授权 root 改成走 `ksud temporary-root apply` 后就会报
+  「更新 app profile 失败」；v4.2.1（40994）走管理器自身路径，所以不受影响。
+  `patches/0005-sys-reboot-hook.patch` 补上了这个 hook（对应的预编译产物见
+  `D:\dsh\SukiSU-kernel\v41065-fd\`），**尚未真机验证**。
 - **内核版本号与 MIUI 原厂不同**（`4.19.157` vs 原厂 `4.19.113`），因此
   `/vendor/lib/modules` 会因 vermagic 不匹配而无法加载。这是 Driftwood 系列
   内核的固有特性；该内核把 WLAN、显示等关键驱动都编进了内核本体，实测
