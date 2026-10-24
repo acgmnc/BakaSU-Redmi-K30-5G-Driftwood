@@ -1,367 +1,246 @@
 # SukiSU-Ultra 内核 — Redmi K30 5G (picasso) / MIUI 14
 
 为 **Redmi K30 5G（picasso，骁龙 765G / SM7250）** 构建的、可正常开机的
-**SukiSU-Ultra root 内核**，运行于 **MIUI 14.0.5（Android 12）**。
+**SukiSU-Ultra root 内核**，运行于 **MIUI 14（Android 12 / Android 13）**。
 
 | 项目 | 值 |
 |---|---|
 | 内核版本 | `4.19.157-Driftwood-v2.2.1` |
-| 内核基线 | [`HeinUmin/kernel_xiaomi_sm7250`](https://github.com/HeinUmin/kernel_xiaomi_sm7250) `android-4.19` 分支（即 Driftwood 内核源码） |
-| Root 方案 | SukiSU-Ultra **v4.2.1-r1**（`builtin` 分支 @ `ce75122`，Manual Hook 模式，内核版本号 **41065**） |
-| 编译器 | **ZyC clang 15.0.7** + lld 17.0.6，`LLVM=1 LLVM_IAS=1` |
-| 目标系统 | MIUI 14.0.5.0.SJDCNXM / Android 12（也适用于其他 picasso 的 A11/A12 ROM） |
-| 实测状态 | ✅ 正常开机、✅ Modem/Radio 工作（LTE/中国移动）、✅ KernelSU 显示「工作中」、✅ 连续运行 9 分钟以上无重启 |
+| 内核基线 | [`HeinUmin/kernel_xiaomi_sm7250`](https://github.com/HeinUmin/kernel_xiaomi_sm7250) `android-4.19`（Driftwood 内核源码） |
+| Root 方案 | SukiSU-Ultra **v4.2.1-r1**（`builtin` @ `ce75122`，Manual Hook 模式，内核版本号 **41065**） |
+| 编译器 | **ZyC clang 15.0.7** + LLD 17.0.6，`LLVM=1 LLVM_IAS=1` |
+| 目标系统 | MIUI 14 `V14.0.5.0.SJDCNXM`（Android 12）、MIUI 14 `V14.0.11.0.TLDCNXM`（Android 13） |
+| 实测状态 | ✅ 正常开机 ✅ Modem/Radio ✅ SukiSU「工作中」 ✅ 软重启已修复（见下） |
 
 产物使用 **A-only 单槽**布局，boot 分区 128 MiB。
 
 ---
 
-## 为什么是 clang 15 而不是更新的版本
+## 本仓库实际修掉的两个问题
 
-这是本仓库最关键的结论：
+### 1. 新管理器授权 root 报「更新 app profile 失败」
 
-> **用 clang 17 编译出来的内核能启动到开机动画，但会在 modem/radio 初始化时崩溃重启。**
+**现象**：管理器 v4.2.1-r1（41049）给应用授权 root 时提示「更新 app profile 失败」，
+换回 v4.2.1（40994）则正常。
 
-现象非常有迷惑性：表现为「间歇性启动失败」，偶尔能进系统、有时直接卡第一屏重启。真正的规律是——
-**只要 radio 被拉起就崩**，所以安全模式 / 飞行模式（不启动 radio）能进桌面，一关飞行模式立刻死机。
+**根因**：这棵 4.19 树原先只接了 execve / faccessat / stat 三处 hook，
+`kernel/reboot.c` 里的 `sys_reboot` hook 没接，`ksu_handle_sys_reboot()` 虽然编译进
+内核却从未被调用 —— ksud 因此拿不到 KernelSU 驱动 fd：
 
-换成与原始 Driftwood 同代的 **clang 15.0.7** 后一次性通过。
+```
+E KernelSU: ksud::temporary_root: temporary root manager operation failed:
+            could not retrieve kernelsu driver fd
+```
 
-排查中已排除的假设（都做过对照验证，不是猜测）：
+41049 把授权 root 改成了 `ksud temporary-root apply` 流程，所以直接失败；
+40994 走管理器自身路径，不依赖 ksud 的 fd，所以看起来「没问题」。
 
-| 假设 | 结论 |
-|---|---|
-| vermagic / 厂商模块版本不匹配 | ❌ 原版 Driftwood 同样不匹配也能开机 |
-| `CONFIG_STATIC_USERMODEHELPER_PATH` 为空 | ❌ 这棵树本来如此 |
-| SukiSU 的 execve/faccessat/stat hook 干扰 | ❌ 停用三处 hook 后仍然崩 |
-| KernelSU 代码本身 | ❌ 同上 |
-| 设备树 / dtbo 不匹配 | ❌ 同一套 dtb+dtbo |
+**修复**：`patches/0005-sys-reboot-hook.patch` —— 在 `sys_reboot` 入口拦截
+`KSU_INSTALL_MAGIC1/2`（`0xDEADBEEF/0xCAFEBABE`）安装驱动 fd 后直接返回，
+正常 `reboot(2)` 不受影响。副作用是正的：ksud 的模块安装、KPM、susfs 命令等
+依赖驱动 fd 的功能一并恢复。
+
+### 2. MIUI 上的偶发软重启（已定位并修复）
+
+**现象**：开机进入桌面后（约 75~125 秒窗口内）屏幕卡住十几秒 → 回到开机 logo →
+再次进入桌面。每轮开机最多一次。
+
+**用户态链条**（此前已查清）：
+
+```
+android.hardware.sensors@1.0-service 主线程卡死（D 状态）
+  → SensorService::pollHal() 永不返回
+  → UiThread 的 SensorService.onUidStateChanged() 等 SensorService 互斥锁
+  → system_server Watchdog 60 秒超时 → SIGKILL system_server → 软重启
+```
+
+**内核侧根因**（本次抓到，开机 43.95 秒时的现场）：
+
+```
+--- hal tid=996  state=D  wchan=kernfs_fop_write      ← HAL 主线程在写
+kernfs_fop_write → __vfs_write → vfs_write → __arm64_sys_write
+
+--- hal tid=1059 state=S  wchan=palm_sensor_show      ← 另一个线程在阻塞读
+palm_sensor_show → dev_attr_show → sysfs_kf_seq_show
+```
+
+1. 传感器 HAL 用**同一个 fd** 访问 `/sys/devices/virtual/touch/touch_dev/palm_sensor`：
+   一个线程阻塞读，主线程写；
+2. `palm_sensor_show()` 是 `wait_event_interruptible(...)`，**没有超时**；
+3. Linux 4.19 的 `kernfs_fop_read()` 在整个 `show()` 期间持有 `of->mutex`；
+4. 主线程的写走 `kernfs_fop_write()` → `mutex_lock(&of->mutex)` → **永久 D 状态**；
+5. 唯一能唤醒读线程的是触摸驱动 `fts_read_palm_data()` 的 I2C 读取，但触摸总线
+   在开机早期会偶发 `i2c_geni 880000.i2c: i2c error :-107`（-ENOTCONN），
+   于是读线程永远等不到事件、写线程永远卡住；
+6. HAL 主线程卡死 → SensorService 被拖死 → Watchdog 杀掉 system_server → 软重启。
+
+这也解释了为什么是「偶发」：只有触摸 I2C 抽风恰好撞上 HAL 同时读+写 palm 的
+窗口，才会从瞬态错误演变成死锁。
+
+**修复**：`patches/0006-palm-sensor-bounded-wait.patch` —— 把无限等待改成
+**500 ms 有界等待**，超时就返回当前值：
+
+```c
+ret = wait_event_interruptible_timeout(touch_dev->wait_queue,
+                                       pdata->palm_changed,
+                                       msecs_to_jiffies(500));
+```
+
+读线程最多 500 ms 就释放 kernfs 锁，写线程不会再卡死。
+
+**验证**：修复后 MIUI 14（A12）与 MIUI 14（A13）各刷入并多次重启，累计 25 分钟
+以上运行未再出现软重启；期间 `i2c error :-107` 仍然每次开机都会出现，
+但 `palm_sensor_store` 都能正常返回，传感器 HAL 不再进入 D 状态。
 
 ---
 
 ## 目录结构
 
 ```
-patches/                     相对上游 android-4.19 分支的全部改动
-  0001-kernelsu-hooks.patch      在 fs/exec.c、fs/open.c、fs/stat.c 接入 KernelSU hook
-  0002-trace-include-paths.patch 修正 4.19 下 trace 头的 TRACE_INCLUDE_PATH
-  0003-build-fixes.patch         cam_cci include 路径 + defconfig 打开 CONFIG_KSU
-  0004-headers-shims.patch       为 KernelSU 补齐 5.x 才有的头文件（pgtable/hex/...）
-kernel/                      SukiSU-Ultra kernel 源码（含 4.19 兼容补丁，173 个文件）
+patches/                        相对上游 android-4.19 的全部改动
+  0001-kernelsu-hooks.patch         fs/exec.c、fs/open.c、fs/stat.c 接入 KernelSU hook
+  0002-trace-include-paths.patch    修正 4.19 下 trace 头的 TRACE_INCLUDE_PATH
+  0003-build-fixes.patch            cam_cci include 路径 + defconfig 打开 CONFIG_KSU
+  0004-headers-shims.patch          补齐 5.x 才有的头文件（pgtable/hex/...）
+  0005-sys-reboot-hook.patch        安装 KSU 驱动 fd 的 sys_reboot hook（修 app profile 失败）
+  0006-palm-sensor-bounded-wait.patch  palm_sensor 有界等待（修软重启）
+  kernelsu-4.19/0001-4.19-compat.patch  给 SukiSU 源码打的 4.19 兼容补丁
+kernel/                         SukiSU-Ultra kernel 源码快照（含上述 4.19 兼容补丁）
 prebuilt/
-  boot.img                   可直接 fastboot 刷入（已实测可开机）
-  SukiSU-picasso-ak3.zip     AnyKernel3 刷机包（含 Image + dtb + dtbo）
+  boot.img                      可直接 fastboot 刷入（含全部修复）
+  SukiSU-picasso-ak3.zip        AnyKernel3 刷机包（保留目标 ROM 自己的 ramdisk）
+tools/repack_boot.py            重打包 boot.img 的小工具
+build.sh                        一键构建脚本
+upstream.lock                   当前 kernel/ 对应的 SukiSU builtin commit
 ```
 
-> `kernel/` 里相对 SukiSU 上游的补丁：`cpu_spoof`（依赖 5.x vDSO 布局）打桩、
-> `kpm.c` 的 `access_ok` 改三参数、`KSU_FEATURE_SELINUX_HIDE` 与
-> `ksu_selinux_hide_*` 条件编译保护、sulog 的 `user_arg_ptr` 传值差异、
-> `kernel_includes.h` 补 `fallthrough`/`TWA_RESUME`、Makefile 加 `-std=gnu11`。
+> `kernel/` 相对 SukiSU 上游的改动：`cpu_spoof` 打桩、`kpm.c` 的 `access_ok`
+> 改三参数、`KSU_FEATURE_SELINUX_HIDE` 条件编译、sulog 的 `user_arg_ptr` 差异、
+> `kernel_includes.h` 补 `fallthrough`/`TWA_RESUME`、Makefile 加 `-std=gnu11`
+> 并固定 `KSU_VERSION`。
 
 ---
 
 ## 使用预编译产物
 
-**方式一：fastboot（推荐，只动 boot 分区）**
+**方式一：fastboot（只动 boot 分区）**
 
 ```bash
 fastboot flash boot prebuilt/boot.img
 fastboot reboot
 ```
 
-**方式二：recovery（OrangeFox/TWRP）**
+> `prebuilt/boot.img` 内的 ramdisk 来自 **MIUI 14 / Android 12** 原厂 boot，
+> 建议只在 A12 的 MIUI 14 上使用。
 
-直接刷 `prebuilt/SukiSU-picasso-ak3.zip`。
+**方式二：recovery（OrangeFox / TWRP）**
 
-> 刷之前务必备份原厂 boot 分区。恢复时把备份的 boot.img 用同样方式刷回即可。
+直接刷 `prebuilt/SukiSU-picasso-ak3.zip`。AnyKernel3 只替换 `Image`/`dtb`/`dtbo`，
+**保留当前 ROM 自己的 ramdisk** —— 换 ROM（例如 Android 13 版 MIUI 14）后请用这个。
 
 **激活 root**：安装 SukiSU 管理器 APK（包名 `com.sukisu.ultra`）。
-内核侧已就绪，装完管理器会显示「工作中」。
-之后再打开任何需要 root 的应用，管理器会弹出授权框，允许后即可使用。
+内核侧已就绪，装完会显示「工作中」。首次给应用授权时按提示允许即可。
+管理器 40994（v4.2.1）和 41049（v4.2.1-r1）都可以正常授权。
+
+> 刷之前务必备份原厂 boot 分区，恢复时用同样方式刷回。
 
 ---
 
 ## 从源码构建
 
 ```bash
+TC=/path/to/clang15/bin ./build.sh
+# 或把 clang 放进 PATH 后直接：
 ./build.sh
 ```
 
-脚本会依次完成：拉取上游源码 → 应用补丁 → 放入 KernelSU 源码 →
-配置工具链 → 编译 `Image` + `dtbo.img` → 重打包 `boot.img`。
+脚本依次完成：拉取上游源码 → 应用 `patches/*.patch` → 放入 KernelSU 源码 →
+生成 defconfig → 编译 `Image` + `dtbo.img` → 收集到 `build/out/`。
+设置 `URL_BOOT=/path/to/stock_boot.img` 还会顺带重打包出 `boot.img`。
 
-### 工具链准备
+**环境要求**
 
-需要 **clang 15**（推荐 [ZyCromerZ/Clang](https://github.com/ZyCromerZ/Clang) 的
-`15.0.7` 版本，自带 aarch64 / arm 的 GNU binutils）。
+- **clang 15**（推荐 [ZyCromerZ/Clang](https://github.com/ZyCromerZ/Clang) `15.0.7`，
+  自带 aarch64/arm binutils）+ lld 17
+- `build-essential` `bc` `bison` `flex` `libssl-dev` `libelf-dev` `python3` `zip`
 
-注意该工具链自带的 `ld.lld` 可能依赖老的 `libxml2.so.2`，在新发行版上会报
-`cannot open shared object file`；解决办法是改用系统自带的 `ld.lld`：
+该工具链自带的 `ld.lld` 在较新发行版上可能报 `libxml2.so.2` 缺失，改用系统的即可：
 
 ```bash
-mv $TC/bin/ld.lld $TC/bin/ld.lld.orig
-ln -s /usr/bin/ld.lld-17 $TC/bin/ld.lld
+mv $TC/ld.lld $TC/ld.lld.orig
+ln -s /usr/bin/ld.lld-17 $TC/ld.lld
 ```
 
-### 依赖
+**构建脚本里处理掉的两个坑**
 
-```
-build-essential bc bison flex libssl-dev libelf-dev python3 zip unzip
-aarch64-linux-gnu binutils（工具链通常自带）
-```
+1. 补丁必须用 `patch -p1` 应用（`patches/` 下的文件是 `a/`、`src/` 前缀；
+   用 `-p0` 会掉进 `File to patch:` 交互并静默跳过全部补丁）。
+2. defconfig 本身不含 LTO/RELR，但只要 PATH 里有 clang/lld，`syncconfig` 就会把它们
+   按默认打开；clang 15 产出的 ThinLTO bitcode 与系统 lld 17 版本不匹配，会直接
+   `ld.lld: error: Invalid value reference from metadata`。脚本在 defconfig 后显式
+   `scripts/config -d LTO_CLANG -d RELR` 再 `olddefconfig`。
 
 ---
 
 ## 已知说明
 
-- **管理器提示「需要更新管理器」**：KernelSU 的版本号不是写死的，上游
-  `kernel/Makefile` 用 `40000 + 上游 main 分支提交数 - 2815` 计算。当前内核
-  固定为 **41065**（对应上游 main 第 3880 个提交，2026-10-24 构建），而
-  v4.2.1 正式版管理器是 40994、最新的 manager-ci 是 41064，所以管理器可能
-  提示「需要更新管理器」。这是版本号提示，**不影响 root 使用**。想消除提示，
-  把 `kernel/Makefile` 里的 `KSU_VERSION` 改成与手上管理器一致的数值后重编即可
-  （旧版做法是固定成 `40994`）。
-- **ksud 拿不到驱动 fd → 新管理器授权 root 报错（已修）**：这棵 4.19 树原先只接了
-  execve / faccessat / stat 三处 hook，`kernel/reboot.c` 里的 `sys_reboot` hook 没接，
-  `ksu_handle_sys_reboot()` 虽然编译进内核却从未被调用。结果是 `ksud` 取不到 KSU
-  驱动 fd（日志里是 `could not retrieve kernelsu driver fd`），
-  v4.2.1-r1（41049）管理器把授权 root 改成走 `ksud temporary-root apply` 后就会报
-  「更新 app profile 失败」；v4.2.1（40994）走管理器自身路径，所以不受影响。
-  `patches/0005-sys-reboot-hook.patch` 补上了这个 hook，**已真机实测**
-  （Redmi K30 5G / MIUI 14：授权 root 正常，ksud 可正常取得驱动 fd）。
-  `prebuilt/` 已更新为带该修复的 41065 构建，对应 Releases `v4.2.1-r1-41065`。
-- **内核版本号与 MIUI 原厂不同**（`4.19.157` vs 原厂 `4.19.113`），因此
-  `/vendor/lib/modules` 会因 vermagic 不匹配而无法加载。这是 Driftwood 系列
-  内核的固有特性；该内核把 WLAN、显示等关键驱动都编进了内核本体，实测
-  WiFi、移动网络、显示均正常。
-- 该内核面向 picasso 的 A11/A12 ROM；不同 MIUI 小版本请自行验证。
-
-### 已知问题：MIUI 上的偶发软重启
-
-**现象**：开机进入桌面几分钟后，屏幕卡住十几秒 → 回到开机 logo → 再次进入桌面。
-每轮开机后最多出现一次，之后不再复现；但手动重启后会再次出现。
-
-**触发条件**：MIUI 13 及以上几乎必然触发；**Android 12 / MIUI 14 上属于偶发**。
-同一内核在类原生 ROM 上不出现。
-
-#### 已确认的机制：system_server 被 Watchdog 杀掉
-
-> **这不是内核崩溃，是 Android 用户空间的自杀式重启。**
-
-实测抓到的完整链路（两次独立复现，证据一致）：
-
-```
-02:08:55.171  1806  2087 I watchdog: Blocked in handler on ui thread (android.ui)
-02:08:55...   watchdog 尝试用 debuggerd 转储所有进程堆栈
-02:09:0x      libdebuggerd_client: failed to send signal to pid 588: Permission denied
-02:09:0x      watchdog: avc: denied { signal } for comm="watchdog"
-                scontext=u:r:system_server:s0 tcontext=u:r:vendor_hal_keymaster_qti:s0
-02:09:04.637  1806  2087 I Process : Sending signal. PID: 1806 SIG: 9   ← 杀掉 system_server
-02:09:04.8xx  Sensors / AudioFlinger / Gnss / Camera / SurfaceFlinger: service died ...
-              ↓
-        zygote 重启 → system_server 换新 PID → SystemUI 重启 → 回到桌面
-```
-
-即：**system_server 的 `android.ui` 线程被阻塞 → Watchdog 超时 → 抓不到堆栈 → 直接 SIGKILL 整个
-system_server → Android 用户空间整体重启。**
-
-#### 真正的根因：传感器 HAL 不响应导致 SensorService 死锁
-
-从 `/data/anr/` 里的 Watchdog 转储（`traces_SystemServer_WDT*`）可以还原出完整死锁链。
-关键证据（native 栈，`system_server` 进程内）：
-
-```
-① 传感器 HAL 不响应
-   进程 android.hardware.sensors@1.0-service 在故障窗口内长时间处于 D 状态
-
-② SensorService 被拖死
-   "SensorService" 线程：
-     SensorService::threadLoop()
-     → SensorDevice::pollHal()
-     → ISensorsWrapperV1_0::poll()            ← 调 HAL 的 poll()，永不返回
-   "Binder:xxxx_x" 线程：
-     BpHwSensors::_hidl_activate()
-     → SensorDevice::activateLocked()
-     → __ioctl                                 ← 等 HAL 回复，卡住
-
-③ UiThread 被这把锁拦住
-   "android.ui" 线程（UiThread）：
-     UiObserverController.dispatchUidsChanged()
-     → SensorService::onUidStateChanged()
-     → SensorService::UidPolicy::onUidActive()
-     → NonPI::MutexLockWithTimeout()           ← 等 SensorService 内部互斥锁（被②持有）
-
-④ Watchdog 探针进不去 → 超时 → SIGKILL
-```
-
-**这里有个容易误判的地方**：Watchdog 转储里 `system_server` 的 **main 线程是完全空闲的**
-（`MessageQueue.nativePollOnce`）。真正被卡住的是独立的 `android.ui`（UiThread）线程——
-Watchdog 监控的正是它，所以看主线程会得出"根本没卡住"的错误结论。
-
-> 注：`SensorService` 本身就运行在 `system_server` 进程内，所以它的死锁会直接拖垮整个
-> system_server，而不是像一个普通应用崩溃那样被隔离。
-
-#### 如何区分"软重启"和真重启
-
-两种情况的屏幕表现几乎一样，但判据完全不同：
-
-| 判据 | 含义 |
-|---|---|
-| `/proc/uptime` **归零** | 内核重启（真重启） |
-| `uptime` 连续，但 `pidof zygote64 system_server` **PID 变化** | 用户空间重启（本问题） |
-| 两者都没变 | 只是 UI 卡顿/掉帧 |
-
-本问题属于第二种。另可用 `pidof` 对比 `ps -A -o PID,STIME,NAME` 里的启动时间快速确认。
-
-#### 故障窗口内观察到的异常
-
-| 观察 | 说明 |
-|---|---|
-| `android.hardware.sensors@1.0-service` 主线程 **持续 50 秒处于 `D` 状态** | 卡在内核不可中断调用里，重启后自行恢复 |
-| `[crtc_commit:109]` 长期 `D` 状态 | DRM 显示提交线程阻塞，与"屏幕卡住"现象吻合 |
-| load average 由 1.3 飙升至 12.5 | 系统严重饱和（8 核） |
-| `/proc/*/wchan`、`/proc/*/stack` | 无 root 不可读，无法直接定位内核等待点 |
-
-> 补充：故障窗口**之外**抓到的 `/proc/<hal_pid>/stack` 显示的是 `binder_ioctl_write_read`
-> （HAL 主线程正常等活），不能作为证据——必须卡死窗口内（开机后约 75~125 秒）抓取才有意义。
-
-#### 尚未完全确定的部分
-
-链路中"传感器 HAL 为什么不响应"这一环还没拿到内核侧证据。已知：
-
-- HAL 进程在窗口内处于 `D`（不可中断睡眠）状态，说明它卡在某个内核调用里
-- 需要在该窗口内读取 `/proc/<hal_pid>/stack` 才能看到具体的内核函数
-- 可能与厂商内核模块无法加载（见下方"背景因素"）有关，但尚未证实
-
-#### 如何获取 ANR 堆栈
-
-Watchdog 在本问题发生时会**尝试**转储所有进程堆栈，但部分转储会被 SELinux 拒绝
-（见上面的 `avc: denied { signal }`）。尽管如此，**文件确实写出来了**，只是需要 root 才能读：
-
-```bash
-# 需要 root（例如用 MT 管理器 / Termux 的 su）
-ls /data/anr/                       # traces_SystemServer_WDT* 就是每次 Watchdog 的完整转储
-```
-
-文件名格式：`traces_SystemServer_WDT<日>_<月>_<时>_<分>_<秒>.<毫秒>_pid<pid>`，按时间排序即可对照
-软重启发生的时刻。副本可复制到 `/sdcard/` 后用 `adb pull` 取出。
-
-转储内容格式要点：
-
-- 第一行 `Subject: Blocked in handler on ui thread (android.ui)` 指明触发的检测项
-- 之后按线程列出，每个线程含 `state=`、`schedstat`、native 栈 + Java 栈
-- 排查重点是 **`android.ui`（UiThread）线程**，不是 `main` 线程
-
-#### 已排除的因素
-
-| 怀疑点 | 结论 |
-|---|---|
-| 内核 panic / 硬件看门狗 | 无 panic 记录，`console-ramoops` 里没有 Oops |
-| `init` / `vendor_init` SIGABRT | 原厂内核日志里同样存在，是 MIUI 正常行为 |
-| 传感器 HAL 彻底损坏 | 重启后 `sensorservice` 正常注册，36 个传感器可用 |
-| 内存压力 / lmkd | 可用内存 2.6 GB，无击杀记录 |
-| 音频模块缺失 | 音频功能实测正常（驱动已编入内核本体） |
-| SukiSU hook 干扰 | 停用三处 hook 后现象不变 |
-
-#### 背景因素（推测，未证实）
-
-本内核版本为 `4.19.157`，而 `/vendor/lib/modules` 下 46 个厂商模块按原厂
-`4.19.113-perf-ga1b60ef832fb` 编译，vermagic 不匹配导致**一个模块都加载不了**
-（`/proc/modules` 为空）。MIUI 的 `ANDR-PERF-RESOURCEQS`、`ACDB-LOADER` 等 HAL 因此持续报错。
-类原生 ROM 不依赖这些模块，这或许能解释"为什么类原生不出现"。
-
-#### 自行排查的建议方法
-
-1. **抓 logcat，但注意 tag 是小写 `watchdog`**（搜大写 `WATCHDOG` 会漏掉）
-2. 崩溃后立刻读内核侧记录（**无需 root**）：
-   ```bash
-   adb shell cat /sys/fs/pstore/console-ramoops-0
-   ```
-   末尾若是 `reboot: Restarting system with command 'userrequested'`，说明是 orderly 重启而非 panic
-3. 同时轮询 `ps -A -T -o PID,TID,STAT,NAME`，观察哪些线程掉进 `D` 状态
-4. 注意 `adb logcat` 的输出**只在进程退出时才刷盘**——设备重启导致 adb 断线时才会写入文件，
-   采样文件显示 0 字节是正常的，不要误以为没在录
+- **vendor 模块无法加载**：内核是 `4.19.157`，而 `/vendor/lib/modules` 下 46 个厂商
+  模块按原厂 `4.19.113-perf-ga1b60ef832fb` 编译，vermagic 不匹配，`/proc/modules`
+  为空。这是 Driftwood 系列内核的固有特性；WLAN、显示等关键驱动已编入内核本体，
+  WiFi、移动网络、显示实测正常。
+- **`i2c_geni 880000.i2c: i2c error :-107` 仍会出现**：这是触摸控制器在开机早期的
+  偶发不响应，本次只修掉了它引发的 kernfs 死锁；触摸本身工作正常，若遇到防误触
+  之类的边角异常，根因在这一层。
+- **管理器版本提示**：KernelSU 版本号由 `40000 + 上游 main 提交数 - 2815` 得出，
+  当前固定为 **41065**（2026-10-24 构建）。v4.2.1 正式版管理器是 40994、
+  manager-ci 是 41064，因此管理器可能提示「需要更新管理器」。这只是版本号提示，
+  不影响 root；想消除可把 `kernel/Makefile` 的 `KSU_VERSION` 改成与手上管理器一致
+  的数值后重编。
+- **内核版本号与 MIUI 原厂不同**（4.19.157 vs 4.19.113），属于基线差异。
+- 该内核面向 picasso 的 A11/A12/A13 ROM，不同 MIUI 小版本请自行验证。
 
 ---
 
 ## 自动同步上游 KernelSU
 
-本仓库**不是** SukiSU 的 fork，而是把 KernelSU 实现以「上游快照 + 本地补丁」的形式放在
-`kernel/` 下。因此上游更新走 **分支 + PR** 流程，绝不直接改 `main`。
+本仓库不是 SukiSU 的 fork，而是「上游快照 + 本地补丁」：`kernel/` 对应
+`upstream.lock` 记录的 `builtin` commit，本地改动集中在 `patches/kernelsu-4.19/`。
+`.github/workflows/sync-upstream.yml` 每周一检查上游，有新提交时自动套补丁、
+推到 `upstream-sync` 分支并开 PR；补丁冲突则开 issue 报警，不动 `main`。
 
-| 文件 | 作用 |
-|---|---|
-| `upstream.lock` | 记录当前 `kernel/` 对应的 SukiSU `builtin` 分支 commit |
-| `patches/kernelsu-4.19/` | 我们对 KernelSU 的全部本地改动（1 个补丁 / 7 个文件） |
-| `.github/workflows/sync-upstream.yml` | 每周一自动检查并开 PR |
-| `.github/pr-template-sync.md` | PR 正文模板 |
-
-### 流程
-
-```
-每周一 04:00 UTC（或手动 workflow_dispatch）
-        │
-        ├─ 上游 builtin HEAD == upstream.lock ? ── 是 ──> 结束
-        │
-        否
-        │
-        ├─ 拉上游 kernel/ 快照
-        ├─ 逐个应用 patches/kernelsu-4.19/*.patch（先 --dry-run 预检）
-        │
-        ├─ 有冲突 ──> 开 issue 报警，不提交任何东西，main 不受影响
-        │
-        └─ 无冲突 ──> 推到 upstream-sync 分支 ──> 开/更新 PR
-```
-
-手动触发：**Actions → Sync SukiSU-Ultra upstream → Run workflow**。
-
-### 合并前必须人工完成
-
-> **CI 只能证明「补丁打得干净」，无法证明「内核能开机」。**
-
-1. 看 workflow 日志，确认补丁全部干净应用
-2. 本地 `./build.sh` 编译（**必须 clang 15**）
-3. **真机刷入并确认能开机** —— 这一步不能省
-4. 注意 `KSU_VERSION` 随上游 commit 数变化，管理器可能再次提示「需要更新管理器」
-
-### 为什么不做「全自动合并」
-
-- 上游 `builtin` 只是**目前**支持 4.19，随时可能按 5.x 重构
-- 内核「能编译」≠「能开机」：本项目就踩过 clang 17 零错误编译、刷入后 modem 崩溃的坑
-- 自动化替代不了真机验证，所以合并权必须留在人手上
-
-### 上游改动导致补丁冲突时怎么修
-
-```bash
-git clone --depth 1 -b builtin https://github.com/SukiSU-Ultra/SukiSU-Ultra.git /tmp/up
-cp -a /tmp/up/kernel /tmp/staged-kernel && cd /tmp/staged-kernel
-patch -p1 --forward < /path/to/repo/patches/kernelsu-4.19/0001-4.19-compat.patch
-# 看 reject 文件，按 4.19 实际 API 修正后重新生成补丁：
-diff -u /tmp/up/kernel/<file> /tmp/staged-kernel/<file> \
-     --label a/kernel/<file> --label b/kernel/<file>
-```
+> CI 只能证明「补丁打得干净」，能否开机必须本地编译 + 真机验证。
 
 ---
 
 ## 验证记录
 
-在 MIUI 14.0.5.0.SJDCNXM / Android 12 实机验证：
+**MIUI 14 / Android 12（V14.0.5.0.SJDCNXM）**
 
 ```
 $ uname -r
 4.19.157-Driftwood-v2.2.1
-
 $ getprop sys.boot_completed
 1
-
 $ getprop gsm.network.type
 LTE
-$ getprop gsm.operator.alpha
-中国移动
-
-SukiSU 管理器：工作中 / Manual Hook / 内核完整版本 v4.2.1-SukiSU-Ultra
-/proc/uptime 连续 549 秒无重启
+SukiSU 管理器：工作中 / Manual Hook / 内核完整版本 v4.2.1-r1
 ```
+
+**MIUI 14 / Android 13（V14.0.11.0.TLDCNXM）**
+
+```
+$ uname -r
+4.19.157-Driftwood-v2.2.1          # #12, ZyC clang 15.0.7 + LLD 17.0.6
+$ getprop ro.build.version.release
+13
+$ su -c id
+uid=0(root) context=u:r:ksu:s0
+```
+
+- 软重启修复后多次重启（≥4 次开机、累计 25 分钟以上）未复现；
+- 期间 `i2c error :-107` 每次开机仍出现，但 `palm_sensor_store` 正常返回、
+  `android.hardware.sensors@1.0-service` 不再进入 D 状态；
+- 内核侧 `ksud --version` → `ksud 4.2.1-r1 (uapi: 6)`，驱动 fd 正常。
 
 ---
 

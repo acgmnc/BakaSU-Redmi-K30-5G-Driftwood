@@ -1,0 +1,31 @@
+--- a/drivers/input/touchscreen/xiaomi/xiaomi_touch.c
++++ b/drivers/input/touchscreen/xiaomi/xiaomi_touch.c
+@@ -1,3 +1,4 @@
++#include <linux/jiffies.h>
+ #include "xiaomi_touch.h"
+ 
+ static struct xiaomi_touch_pdata *touch_pdata;
+@@ -204,8 +205,22 @@
+ {
+ 	struct xiaomi_touch_pdata *pdata = dev_get_drvdata(dev);
+ 	struct xiaomi_touch *touch_dev = pdata->device;
++	long ret;
+ 
+-	wait_event_interruptible(touch_dev->wait_queue, pdata->palm_changed);
++	/*
++	 * Bounded wait. A blocking read here holds kernfs' per-open mutex, and
++	 * the sensors HAL reads and writes this attribute through the same fd:
++	 * when the touch controller stops delivering palm events
++	 * (i2c_geni: i2c error :-107) the read never returns and the write
++	 * blocks in D state forever, which wedges SensorService and makes the
++	 * system_server watchdog kill itself.  Time out and report the current
++	 * value instead of blocking indefinitely.
++	 */
++	ret = wait_event_interruptible_timeout(touch_dev->wait_queue,
++					       pdata->palm_changed,
++					       msecs_to_jiffies(500));
++	if (ret == -ERESTARTSYS)
++		return -ERESTARTSYS;
+ 	pdata->palm_changed = false;
+ 
+ 	return snprintf(buf, PAGE_SIZE, "%d\n", pdata->palm_value);
