@@ -42,9 +42,9 @@ cd "$KSRC"
 msg "应用补丁"
 for p in "$HERE"/patches/*.patch; do
     echo "  - $(basename "$p")"
-    patch -p0 --forward --silent < "$p" || {
+    patch -p1 --forward --batch --silent < "$p" || {
         # 已经被应用过则跳过
-        patch -p0 --forward --dry-run --silent < "$p" >/dev/null 2>&1 \
+        patch -p1 --forward --batch --dry-run --silent < "$p" >/dev/null 2>&1 \
             && die "补丁失败: $p" || echo "    (已应用，跳过)"
     }
 done
