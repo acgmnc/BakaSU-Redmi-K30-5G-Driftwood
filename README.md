@@ -127,8 +127,9 @@ aarch64-linux-gnu binutils（工具链通常自带）
   驱动 fd（日志里是 `could not retrieve kernelsu driver fd`），
   v4.2.1-r1（41049）管理器把授权 root 改成走 `ksud temporary-root apply` 后就会报
   「更新 app profile 失败」；v4.2.1（40994）走管理器自身路径，所以不受影响。
-  `patches/0005-sys-reboot-hook.patch` 补上了这个 hook（对应的预编译产物见
-  `D:\dsh\SukiSU-kernel\v41065-fd\`），**尚未真机验证**。
+  `patches/0005-sys-reboot-hook.patch` 补上了这个 hook，**已真机实测**
+  （Redmi K30 5G / MIUI 14：授权 root 正常，ksud 可正常取得驱动 fd）。
+  `prebuilt/` 已更新为带该修复的 41065 构建，对应 Releases `v4.2.1-r1-41065`。
 - **内核版本号与 MIUI 原厂不同**（`4.19.157` vs 原厂 `4.19.113`），因此
   `/vendor/lib/modules` 会因 vermagic 不匹配而无法加载。这是 Driftwood 系列
   内核的固有特性；该内核把 WLAN、显示等关键驱动都编进了内核本体，实测
