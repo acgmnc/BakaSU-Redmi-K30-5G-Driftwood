@@ -8,8 +8,7 @@ name: Sync SukiSU-Ultra upstream
 # 合并前必须本地编译 + 真机刷入验证。
 
 on:
-  schedule:
-    - cron: '0 4 * * 1'
+  # 4.19 兼容层正在按新上游重写，暂时只保留手动触发（见 issue #2）
   workflow_dispatch:
 
 permissions:
