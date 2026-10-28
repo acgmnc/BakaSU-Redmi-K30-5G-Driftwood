@@ -1,1 +1,11 @@
-ce75122bec7423e0f1fa06e3e9a174085c5231ab
+{
+  "project": "BakaSU",
+  "repo": "Baka-SU/BakaSU",
+  "branch": "main",
+  "commit": "d5e9e025b8b49155f8014684d64c91742b465f65",
+  "commit_count": 4552,
+  "ksu_version": "35252",
+  "version_name": "v4.2.0-rc3-d5e9e025",
+  "kernel": "HeinUmin/kernel_xiaomi_sm7250@android-4.19",
+  "toolchain": "clang 15.0.7 + LLD 15.0.7"
+}

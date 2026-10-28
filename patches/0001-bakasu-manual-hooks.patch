@@ -1,0 +1,137 @@
+diff --git a/drivers/input/input.c b/drivers/input/input.c
+index 5ad260983..9fedd561a 100644
+--- a/drivers/input/input.c
++++ b/drivers/input/input.c
+@@ -338,17 +338,12 @@ static int input_handle_abs_event(struct input_dev *dev,
+ 	return INPUT_PASS_TO_HANDLERS;
+ }
+ 
+-extern bool ksu_input_hook __read_mostly;
+-extern int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *value);
+-
+ static int input_get_disposition(struct input_dev *dev,
+ 			  unsigned int type, unsigned int code, int *pval)
+ {
+ 	int disposition = INPUT_IGNORE_EVENT;
+ 	int value = *pval;
+ 
+-	if (unlikely(ksu_input_hook))
+-		ksu_handle_input_handle_event(&type, &code, &value);
+ 
+ 	switch (type) {
+ 
+diff --git a/fs/exec.c b/fs/exec.c
+index 8fe750362..f9ee8c927 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -1908,22 +1908,23 @@ static int __do_execve_file(int fd, struct filename *filename,
+ 	return retval;
+ }
+ 
+-extern bool ksu_execveat_hook __read_mostly;
+ extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
+ 			void *envp, int *flags);
+-extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
+-				 void *argv, void *envp, int *flags);
++extern int ksu_handle_post_execveat(int *fd, struct filename **filename_ptr, void *argv,
++			void *envp, int *flags, int *retval);
+ 
+ static int do_execveat_common(int fd, struct filename *filename,
+ 			      struct user_arg_ptr argv,
+ 			      struct user_arg_ptr envp,
+ 			      int flags)
+ {
+-	if (unlikely(ksu_execveat_hook))
+-		ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
+-	else
+-		ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);
+-	return __do_execve_file(fd, filename, argv, envp, flags, NULL);
++	int retval;
++
++	ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
++	retval = __do_execve_file(fd, filename, argv, envp, flags, NULL);
++	ksu_handle_post_execveat(&fd, &filename, &argv, &envp, &flags, &retval);
++
++	return retval;
+ }
+ 
+ int do_execve_file(struct file *file, void *__argv, void *__envp)
+diff --git a/fs/read_write.c b/fs/read_write.c
+index 5ee50dca4..eefdd3792 100644
+--- a/fs/read_write.c
++++ b/fs/read_write.c
+@@ -434,16 +434,10 @@ ssize_t kernel_read(struct file *file, void *buf, size_t count, loff_t *pos)
+ }
+ EXPORT_SYMBOL(kernel_read);
+ 
+-extern bool ksu_vfs_read_hook __read_mostly;
+-extern int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
+-			size_t *count_ptr, loff_t **pos);
+-
+ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
+ {
+ 	ssize_t ret;
+ 
+-	if (unlikely(ksu_vfs_read_hook))
+-		ksu_handle_vfs_read(&file, &buf, &count, &pos);
+ 
+ 	if (!(file->f_mode & FMODE_READ))
+ 		return -EBADF;
+diff --git a/fs/stat.c b/fs/stat.c
+index e4ea28fdd..2c5844ead 100644
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -372,6 +372,11 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ }
+ #endif
+ 
++extern void ksu_handle_newfstat_ret(unsigned int *fd, struct stat __user **statbuf_ptr);
++#if defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_COMPAT_STAT64)
++extern void ksu_handle_fstat64_ret(unsigned long *fd, struct stat64 __user **statbuf_ptr);
++#endif
++
+ SYSCALL_DEFINE2(newfstat, unsigned int, fd, struct stat __user *, statbuf)
+ {
+ 	struct kstat stat;
+@@ -380,6 +385,8 @@ SYSCALL_DEFINE2(newfstat, unsigned int, fd, struct stat __user *, statbuf)
+ 	if (!error)
+ 		error = cp_new_stat(&stat, statbuf);
+ 
++	ksu_handle_newfstat_ret(&fd, &statbuf);
++
+ 	return error;
+ }
+ 
+@@ -506,6 +513,10 @@ SYSCALL_DEFINE2(fstat64, unsigned long, fd, struct stat64 __user *, statbuf)
+ 	if (!error)
+ 		error = cp_new_stat64(&stat, statbuf);
+ 
++#if defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_COMPAT_STAT64)
++	ksu_handle_fstat64_ret(&fd, &statbuf);
++#endif
++
+ 	return error;
+ }
+ 
+diff --git a/kernel/reboot.c b/kernel/reboot.c
+index 4fef5894b..e0489a075 100644
+--- a/kernel/reboot.c
++++ b/kernel/reboot.c
+@@ -305,6 +305,8 @@ DEFINE_MUTEX(system_transition_mutex);
+  *
+  * reboot doesn't sync: do that yourself before calling this.
+  */
++extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
++
+ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
+ 		void __user *, arg)
+ {
+@@ -312,6 +314,8 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
+ 	char buffer[256];
+ 	int ret = 0;
+ 
++	ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
++
+ 	/* We only trust the superuser with rebooting the system. */
+ 	if (!ns_capable(pid_ns->user_ns, CAP_SYS_BOOT))
+ 		return -EPERM;
