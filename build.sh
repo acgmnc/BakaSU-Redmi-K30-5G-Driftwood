@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# 构建 BakaSU + Driftwood 内核 for Redmi K30 5G (picasso)
+# 构建 BakaSU + SuSFS + Driftwood 内核 for Redmi K30 5G (picasso)
 #
 # 用法:
 #   ./build.sh                       # 全自动：拉源码 -> 打补丁 -> 编译 -> 打包
@@ -92,8 +92,12 @@ make "${MAKEFLAGS_COMMON[@]}" "$DEFCONFIG"
 # 同时关掉 LTO/RELR：defconfig 里没有，但 syncconfig 会按 clang 默认值打开，
 # clang 15 的 ThinLTO bitcode 与系统 lld 版本不匹配会导致链接失败。
 ./scripts/config --file .config \
-    -e KSU -e KSU_MANUAL_HOOK -d KSU_TRACEPOINT_HOOK \
-    -d LTO_CLANG -d RELR
+    -e KSU -e KSU_SUSFS \
+    -e KSU_SUSFS_SUS_PATH -e KSU_SUSFS_SUS_KSTAT -e KSU_SUSFS_SUS_MAP \
+    -e KSU_SUSFS_SPOOF_UNAME -e KSU_SUSFS_ENABLE_LOG -e KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS \
+    -d KSU_SUSFS_SUS_MOUNT -d KSU_SUSFS_OPEN_REDIRECT -d KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG \
+    -d KSU_MANUAL_HOOK -d KSU_TRACEPOINT_HOOK \
+    -d LTO_CLANG -d RELR -e COMPAT -d COMPAT_VDSO
 make "${MAKEFLAGS_COMMON[@]}" olddefconfig
 
 msg "编译内核（Image + dtbo.img）"
@@ -125,5 +129,5 @@ cat <<'TIP'
   或用 AnyKernel3 把 Image + dtb + dtbo.img 打成 recovery 刷机包
 
   激活 root 需安装 BakaSU/ReSukiSU 管理器 APK (com.resukisu.resukisu)
-  内核驱动版本应显示 v4.2.0-rc3-d5e9e025 (35252)
+  内核驱动版本应显示 v4.2.0-rc3-d5e9e025 (35252)，SuSFS 版本 v2.3.0
 TIP
