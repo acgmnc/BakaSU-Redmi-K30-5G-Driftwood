@@ -15,8 +15,8 @@ Redmi K30 5G（picasso）内核，内置（`built-in`）方式集成。
 | 工具链 | clang 15.0.7 + LLD 15.0.7（`LLVM=1 LLVM_IAS=1`） |
 
 ## SuSFS
-
-`susfs` 分支在 BakaSU 35252 的基础上集成了 **SuSFS v2.3.0**（移植自
+已合并SuSFS分支
+在 BakaSU 35252 的基础上集成了 **SuSFS v2.3.0**（移植自
 simonpunk/susfs4ksu `gki-android12-5.10` 的现代实现，补丁见
 `patches/0006-susfs-v2.3.0-4.19.patch`）。
 
