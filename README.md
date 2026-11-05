@@ -292,7 +292,7 @@ Q: AnyKernel3 和 boot.img 应该选哪个？
 - "simonpunk/susfs4ksu" (https://gitlab.com/simonpunk/susfs4ksu)
 - Driftwood 内核相关贡献者
 - Redmi K30 5G 社区及所有测试者
-
+- claude以及chatgpt
 License
 
 内核主体及各个第三方组件遵循各自源码目录中的许可证。使用、修改或再分发时，请遵守对应上游项目的许可证要求。
