@@ -274,14 +274,6 @@ Q: AnyKernel3 和 boot.img 应该选哪个？
 
 项目版本更新记录请以 "GitHub Releases" (https://github.com/acgmnc/BakaSU-Redmi-K30-5G-Driftwood/releases) 为准。
 
-每次发布建议注明：
-
-- 内核版本与构建日期。
-- BakaSU 版本及 Commit。
-- SuSFS 版本与启用功能。
-- 修复的问题和新增功能。
-- 适用的 Android 版本。
-- 对应的刷入包及镜像类型。
 
 免责声明 | Disclaimer
 
