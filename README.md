@@ -214,14 +214,14 @@ build/out/
 2. 将设备进入 Fastboot 模式。
 3. 连接电脑并执行：
 
-fastboot flash boot boot_bakasu_35252.img
+fastboot flash boot boot.img
 fastboot reboot
 
 刷入前请务必备份原厂 boot.img，并确认镜像对应自己的系统版本。
 
 注意：
 
-- 当前提供的 "boot_bakasu_35252.img" 使用 Android 13 原厂 ramdisk。
+- 当前提供的 "boot_bakasu_susfs.img" 使用 Android 13 原厂 ramdisk。
 - Android 12 与 Android 13 的原厂 ramdisk 不应混用。
 - 如果使用 Android 12，请优先选择对应版本的 AnyKernel3 包，或自行使用 Android 12 原厂 boot.img 重打包。
 - 刷入前请确认设备处于可恢复状态，并了解 Fastboot / Recovery 救援方式。
