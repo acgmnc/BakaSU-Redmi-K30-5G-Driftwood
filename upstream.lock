@@ -7,5 +7,11 @@
   "ksu_version": "35252",
   "version_name": "v4.2.0-rc3-d5e9e025",
   "kernel": "HeinUmin/kernel_xiaomi_sm7250@android-4.19",
-  "toolchain": "clang 15.0.7 + LLD 15.0.7"
+  "toolchain": "clang 15.0.7 + LLD 15.0.7",
+  "susfs": {
+    "version": "v2.3.0",
+    "upstream": "simonpunk/susfs4ksu@gki-android12-5.10",
+    "patch": "patches/0006-susfs-v2.3.0-4.19.patch",
+    "features": ["SUS_PATH", "SUS_KSTAT", "SUS_MAP", "SPOOF_UNAME", "ENABLE_LOG", "HIDE_KSU_SUSFS_SYMBOLS"]
+  }
 }

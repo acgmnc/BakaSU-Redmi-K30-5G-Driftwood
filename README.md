@@ -14,6 +14,29 @@ Redmi K30 5G（picasso）内核，内置（`built-in`）方式集成。
 | SELinux | 强制执行，root 上下文 `u:r:ksu:s0` |
 | 工具链 | clang 15.0.7 + LLD 15.0.7（`LLVM=1 LLVM_IAS=1`） |
 
+## SuSFS
+
+`susfs` 分支在 BakaSU 35252 的基础上集成了 **SuSFS v2.3.0**（移植自
+simonpunk/susfs4ksu `gki-android12-5.10` 的现代实现，补丁见
+`patches/0006-susfs-v2.3.0-4.19.patch`）。
+
+已启用：
+
+| 功能 | 说明 |
+|---|---|
+| `SUS_PATH` | 路径隐藏（readdir 过滤 + 查找返回 ENOENT） |
+| `SUS_KSTAT` | stat 字段伪装 |
+| `SUS_MAP` | `/proc/<pid>/maps`、`smaps`、`pagemap` 隐藏 |
+| `SPOOF_UNAME` | uname 伪装 |
+| `ENABLE_LOG` / `HIDE_KSU_SUSFS_SYMBOLS` | 日志与符号隐藏 |
+
+暂未启用（4.19 适配工作量大，后续补齐）：
+
+- `SUS_MOUNT`：4.19 的 `struct mount` 与 5.10 差异大，现代实现还依赖 SukiSU 的 mnt_id 伪装机制
+- `OPEN_REDIRECT`：4.19 是 `do_last()` 而非 `open_last_lookups()`，需要重写 open 路径
+- `SPOOF_CMDLINE`：4.19 没有 `bootconfig`，需要改 `fs/proc/cmdline.c`
+
+真机验证：开机正常、`su -c id` 为 root、管理器「版本信息」里显示 **SuSFS 版本 v2.3.0**。
 ## 为什么是 BakaSU
 
 之前本项目基于 SukiSU-Ultra。SukiSU 新版上游（`builtin` 分支 5.10+ 架构）改用
