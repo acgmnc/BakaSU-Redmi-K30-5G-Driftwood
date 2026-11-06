@@ -225,6 +225,7 @@ fastboot reboot
 - Android 12 与 Android 13 的原厂 ramdisk 不应混用。
 - 如果使用 Android 12，请优先选择对应版本的 AnyKernel3 包，或自行使用 Android 12 原厂 boot.img 重打包。
 - 刷入前请确认设备处于可恢复状态，并了解 Fastboot / Recovery 救援方式。
+- 其他安卓版本的仅推荐使用AnyKernel3刷入
 
 管理器 | Manager
 
