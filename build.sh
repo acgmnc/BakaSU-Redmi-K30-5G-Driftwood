@@ -122,9 +122,9 @@ make "${MAKEFLAGS_COMMON[@]}" "$DEFCONFIG" < /dev/null
 ./scripts/config --file .config \
     --set-val LITTLE_CPU_MASK 63 --set-val BIG_CPU_MASK 64 --set-val PRIME_CPU_MASK 128 \
     -e KSU -e KSU_SUSFS \
-    -e KSU_SUSFS_SUS_PATH -e KSU_SUSFS_SUS_KSTAT -e KSU_SUSFS_SUS_MAP \
-    -e KSU_SUSFS_SPOOF_UNAME -e KSU_SUSFS_ENABLE_LOG -e KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS \
-    -d KSU_SUSFS_SUS_MOUNT -d KSU_SUSFS_OPEN_REDIRECT -d KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG \
+    -e KSU_SUSFS_SUS_PATH -e KSU_SUSFS_SUS_MOUNT -e KSU_SUSFS_SUS_KSTAT -e KSU_SUSFS_SUS_MAP \
+    -e KSU_SUSFS_SPOOF_UNAME -e KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG -e KSU_SUSFS_OPEN_REDIRECT \
+    -e KSU_SUSFS_ENABLE_LOG -e KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS \
     -d KSU_MANUAL_HOOK -d KSU_TRACEPOINT_HOOK \
     -d LTO_CLANG -d RELR -e COMPAT -d COMPAT_VDSO
 make "${MAKEFLAGS_COMMON[@]}" olddefconfig < /dev/null
@@ -133,6 +133,9 @@ msg "校验最终配置"
 grep -q '^CONFIG_KSU=y$'            .config || die "CONFIG_KSU 未启用"
 grep -q '^CONFIG_KSU_SUSFS=y$'      .config || die "CONFIG_KSU_SUSFS 未启用（会退回无 hook 状态）"
 grep -q '^CONFIG_KSU_SUSFS_SUS_PATH=y$' .config || die "CONFIG_KSU_SUSFS_SUS_PATH 未启用"
+grep -q '^CONFIG_KSU_SUSFS_SUS_MOUNT=y$' .config || die "CONFIG_KSU_SUSFS_SUS_MOUNT 未启用"
+grep -q '^CONFIG_KSU_SUSFS_OPEN_REDIRECT=y$' .config || die "CONFIG_KSU_SUSFS_OPEN_REDIRECT 未启用"
+grep -q '^CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y$' .config || die "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG 未启用"
 grep -q '^CONFIG_COMPAT=y$'         .config || die "CONFIG_COMPAT 未启用（32 位 su 会不可用）"
 grep -q '^# CONFIG_KSU_MANUAL_HOOK is not set$' .config || \
     die "KSU_MANUAL_HOOK 与 KSU_SUSFS 同时开启（choice 冲突）"

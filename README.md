@@ -66,23 +66,18 @@ SuSFS v2.3.0
 
 基于 "simonpunk/susfs4ksu" (https://gitlab.com/simonpunk/susfs4ksu) 的实现进行 4.19 适配。
 
-目前启用的功能：
+目前启用的功能（全部）：
 
 配置| 功能
 "SUS_PATH"| 隐藏指定路径
+"SUS_MOUNT"| 隐藏 su 进程创建的挂载（mountinfo/mounts/mountstats）
 "SUS_KSTAT"| 伪装文件状态信息
 "SUS_MAP"| 隐藏指定进程的 maps 等信息
 "SPOOF_UNAME"| uname 信息伪装
+"SPOOF_CMDLINE_OR_BOOTCONFIG"| 伪装 "/proc/cmdline"（4.19 无 bootconfig）
+"OPEN_REDIRECT"| 打开/读取链接重定向伪装
 "ENABLE_LOG"| SuSFS 日志
 "HIDE_KSU_SUSFS_SYMBOLS"| 隐藏 KSU / SuSFS 符号
-
-暂未启用的功能：
-
-- "SUS_MOUNT"
-- "OPEN_REDIRECT"
-- "SPOOF_CMDLINE"
-
-这些功能涉及较大的内核版本差异，暂不在当前 4.19 适配范围内。
 
 设备适配与修复
 

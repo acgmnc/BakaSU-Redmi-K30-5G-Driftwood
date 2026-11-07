@@ -8,7 +8,18 @@
 | `0003-build-fixes.patch` | `cam_cci` 头文件路径；defconfig 追加 `CONFIG_KSU=y` |
 | `0004-headers-shims.patch` | 4.19 缺的 5.x 头文件 shim |
 | `0005-palm-sensor-bounded-wait.patch` | **软重启修复**：palm 传感器等待改 500 ms 超时 |
-| `0006-susfs-v2.3.0-4.19.patch` | SuSFS v2.3.0 移植 + BakaSU `KSU_SUSFS` 所需的全部内核钩子 |
+| `0006-susfs-v2.3.0-4.19.patch` | SuSFS v2.3.0 完整移植：`SUS_PATH`、`SUS_MOUNT`、`SUS_KSTAT`、`SUS_MAP`、`SPOOF_UNAME`、`SPOOF_CMDLINE_OR_BOOTCONFIG`、`OPEN_REDIRECT`、日志与符号隐藏，以及 BakaSU `KSU_SUSFS` 所需的全部内核钩子 |
+
+### 0006 里的 4.19 适配要点
+
+- `fs/susfs.c`：fsnotify 用 4.19 的 `handle_event` 老签名
+- `SUS_MOUNT`：去掉 `mnt_stuck_children`（5.7+）、自定义 `CL_COPY_MNT_NS`、补 `susfs_def.h`/`susfs_is_current_ksu_domain()` 声明、`copy_mnt_ns` 置位
+- `SUS_PATH`：4.19 没有 `nd->state`，在 `lookup_fast`/`__lookup_slow` 直接返回 ENOENT
+- `SUS_KSTAT`：直接覆盖 `vfs_getattr_nosec` 字段（4.19 无 `stat->mnt_id`）
+- `SUS_MAP`：`walk_page_range` 四参数、`down_read_killable`、`get_user_pages_remote(tsk, ...)`
+- `SPOOF_CMDLINE`：4.19 无 bootconfig，改挂 `fs/proc/cmdline.c`
+- `OPEN_REDIRECT`：`do_last`/`do_o_path` 在 `vfs_open` 前替换路径，`vfs_readlink` 伪装，`VMA_PAD_START` → `vm_end`
+- `filename_lookup()` 在 4.19 会消费 filename，重定向后不能再 `putname()`
 
 ## manual-hooks/ 是另一套模式，默认不参与构建
 
