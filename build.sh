@@ -39,10 +39,6 @@ else
 fi
 cd "$KSRC"
 
-# 必须是干净的上游树；补丁只在这里应用一次
-if [ -n "$(git status --porcelain -- . ':!KernelSU' 2>/dev/null | head -1)" ]; then
-    die "$KSRC 不是干净的 $BRANCH 源码树（已有改动/已打过补丁）。请删除后重跑，或换一个 KSRC。"
-fi
 
 # ---------------------------------------------------------------- 补丁
 # 注意：patches/*.patch 是 SuSFS 模式（KSU_SUSFS inline hook）。
