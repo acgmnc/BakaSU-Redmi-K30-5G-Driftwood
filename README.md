@@ -1,3 +1,6 @@
+> **分支说明**：本分支是 **SukiSU-Ultra v4.2.1-r1 (41065)** 的历史版本（含 `sys_reboot` 钩子与 palm 传感器超时修复），已停止维护。
+> 当前主线 [`main`](https://github.com/acgmnc/BakaSU-Redmi-K30-5G-Driftwood/tree/main) 已迁移到 **BakaSU 35252 + SuSFS v2.3.0**。
+
 # SukiSU-Ultra 内核 — Redmi K30 5G (picasso) / MIUI 14
 
 为 **Redmi K30 5G（picasso，骁龙 765G / SM7250）** 构建的、可正常开机的
