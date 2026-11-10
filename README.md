@@ -67,6 +67,7 @@
 | 基础内核 | Driftwood `4.19.157` |
 | 上游源码 | [HeinUmin/kernel_xiaomi_sm7250](https://github.com/HeinUmin/kernel_xiaomi_sm7250) |
 | 上游分支 | `android-4.19` |
+| 基础内核 commit | `d5e7594639962856a44ba0f08163202e6129858a`（由 `upstream.lock` 固定）|
 | Root 方案 | BakaSU `v4.2.0-rc3-d5e9e025` |
 | BakaSU Version Code | `35252` |
 | SuSFS | `v2.3.0`（NON-GKI） |
@@ -83,7 +84,7 @@
 - Commit：`d5e9e025`
 - Version Code：`35252`
 
-源码快照由 `upstream.lock` 记录，以固定构建版本。
+BakaSU 与基础内核源码快照均由 `upstream.lock` 记录，构建脚本会检出其中锁定的上游内核 commit。
 
 ### SuSFS v2.3.0
 
@@ -146,7 +147,7 @@
 
 - Clang 15、LLD 15、LLVM 15
 - AArch64 GNU Toolchain
-- Python 3、Git、Make
+- Python 3、Git、Make、`patch`
 - 常用内核构建依赖
 
 Ubuntu 安装示例：
@@ -156,7 +157,7 @@ sudo apt update
 sudo apt install -y \
   build-essential bc bison flex \
   libssl-dev libelf-dev libncurses-dev \
-  python3 git zip unzip rsync cpio kmod \
+  python3 git patch zip unzip rsync cpio kmod \
   binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu \
   clang-15 lld-15 llvm-15
 ~~~
