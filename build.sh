@@ -284,7 +284,7 @@ msg "生成 dtb"
 DTB_DIR=arch/arm64/boot/dts/vendor/qcom
 [ -d "$DTB_DIR" ] || die "DTB 目录不存在: $DTB_DIR"
 mapfile -d '' DTB_FILES < <(find "$DTB_DIR" -type f -name '*.dtb' -print0 | sort -z)
-if (( ${#DTB_FILES[@]} == 0 )); then
+if [[ -z "${DTB_FILES[*]-}" ]]; then
     die "没有找到可打包的 Qualcomm DTB"
 fi
 for dtb_file in "${DTB_FILES[@]}"; do
