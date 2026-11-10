@@ -48,6 +48,9 @@ fi
 for tool in git patch make python3 bc bison flex realpath find sort cat awk sed grep diff sha256sum nproc clang ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump llvm-strip aarch64-linux-gnu-gcc; do
     command -v "$tool" >/dev/null || die "找不到构建依赖: $tool"
 done
+# arch/arm64/boot/Makefile 的 dtbo.img 规则调用的是 `python`（不是 python3）
+command -v python >/dev/null || \
+    die "找不到 python（dtbo.img 需要），请安装 python-is-python3 或把 python 链接到 python3"
 
 if [[ "$(clang --version | head -1)" =~ version[[:space:]]([0-9]+) ]]; then
     CLANG_MAJOR="${BASH_REMATCH[1]}"
@@ -124,7 +127,7 @@ for patch_file in "${PATCH_FILES[@]}"; do
     while IFS= read -r path; do
         path="${path%%$'\t'*}"
         [ -n "$path" ] && ALLOWED_TRACKED["$path"]=1
-    done < <(sed -n 's|^+++ b/||p' "$patch_file")
+    done < <(sed -n 's|^+++ [^/]*/||p' "$patch_file")
 
     while IFS= read -r path; do
         [ -n "$path" ] && ALLOWED_NEW["$path"]=1
@@ -186,6 +189,9 @@ echo "  钩子检查通过"
 
 # ---------------------------------------------------------------- BakaSU
 msg "安装 BakaSU 源码"
+if [ -d KernelSU ] && [ ! -L KernelSU ] && [ -z "$(ls -A KernelSU 2>/dev/null)" ]; then
+    rmdir KernelSU
+fi
 if [ -e KernelSU ] || [ -L KernelSU ]; then
     [ -d KernelSU ] && [ ! -L KernelSU ] || die "KernelSU 路径不是预期目录，拒绝覆盖"
     [ -d KernelSU/kernel ] && [ ! -L KernelSU/kernel ] || die "KernelSU/kernel 不存在或不是普通目录"
@@ -199,7 +205,9 @@ else
 fi
 
 if [ -L drivers/kernelsu ]; then
-    [ "$(readlink drivers/kernelsu)" = "../KernelSU/kernel" ] || \
+    ksu_link="$(readlink drivers/kernelsu)"
+    ksu_link="${ksu_link%/}"
+    [ "$ksu_link" = "../KernelSU/kernel" ] || \
         die "drivers/kernelsu 是指向其他位置的链接，拒绝覆盖"
 elif [ -e drivers/kernelsu ]; then
     die "drivers/kernelsu 已存在且不是本脚本创建的符号链接，拒绝覆盖"
