@@ -194,7 +194,7 @@ URL_BOOT=stock_boot.img ./build.sh
 ~~~text
 build/out/
 ├── Image
-├── dtb/
+├── dtb
 ├── dtbo.img
 └── boot.img   # 仅在指定 URL_BOOT 时生成
 ~~~
