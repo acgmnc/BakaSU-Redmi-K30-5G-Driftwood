@@ -12,6 +12,17 @@
     "version": "v2.3.0",
     "upstream": "simonpunk/susfs4ksu@gki-android12-5.10",
     "patch": "patches/0006-susfs-v2.3.0-4.19.patch",
-    "features": ["SUS_PATH", "SUS_KSTAT", "SUS_MAP", "SPOOF_UNAME", "ENABLE_LOG", "HIDE_KSU_SUSFS_SYMBOLS"]
-  }
+    "features": [
+      "SUS_PATH",
+      "SUS_MOUNT",
+      "SUS_KSTAT",
+      "SUS_MAP",
+      "SPOOF_UNAME",
+      "SPOOF_CMDLINE_OR_BOOTCONFIG",
+      "OPEN_REDIRECT",
+      "ENABLE_LOG",
+      "HIDE_KSU_SUSFS_SYMBOLS"
+    ]
+  },
+  "kernel_commit": "d5e7594639962856a44ba0f08163202e6129858a"
 }
