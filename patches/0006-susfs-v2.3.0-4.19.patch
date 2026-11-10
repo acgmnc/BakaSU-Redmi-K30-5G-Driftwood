@@ -118,7 +118,7 @@ index 1bf3a7c8f..edfb12e17 100644
  obj-y +=	buffer.o block_dev.o direct-io.o mpage.o
  else
 diff --git a/fs/exec.c b/fs/exec.c
-index 8fe750362..704c6dc00 100644
+index 8fe750362..afdfa26d2 100644
 --- a/fs/exec.c
 +++ b/fs/exec.c
 @@ -61,6 +61,23 @@
@@ -145,12 +145,32 @@ index 8fe750362..704c6dc00 100644
  #include <linux/vmalloc.h>
  
  #include <linux/uaccess.h>
-@@ -1743,10 +1760,27 @@ static int __do_execve_file(int fd, struct filename *filename,
+@@ -1734,6 +1751,15 @@ static int exec_binprm(struct linux_binprm *bprm)
+ /*
+  * sys_execve() executes a new program.
+  */
++#ifdef CONFIG_KSU_SUSFS
++#ifndef KSU_NO_PREINIT
++extern int ksu_setup_preinit_file(struct filename **filename_ptr, struct user_arg_ptr *argv_user);
++extern int ksu_preinit_handle_post_execveat(int *fd, struct filename **filename_ptr,
++				void *argv_user, void *envp_user,
++				int *flags, int *retval, int *preinit_fd);
++#endif
++#endif
++
+ static int __do_execve_file(int fd, struct filename *filename,
+ 			    struct user_arg_ptr argv,
+ 			    struct user_arg_ptr envp,
+@@ -1743,10 +1769,41 @@ static int __do_execve_file(int fd, struct filename *filename,
  	struct linux_binprm *bprm;
  	struct files_struct *displaced;
  	int retval;
 +#ifdef CONFIG_KSU_SUSFS
 +	bool is_su_session = false;
++#ifndef KSU_NO_PREINIT
++	bool is_ksu_preinit_session = false;
++	int preinit_fd = 0;
++#endif
 +#endif
  
  	if (IS_ERR(filename))
@@ -167,13 +187,23 @@ index 8fe750362..704c6dc00 100644
 +			is_su_session = !ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);
 +	}
 +
++#ifndef KSU_NO_PREINIT
++	if (unlikely(current->pid == 1) && !is_su_session) {
++		if (fd == AT_FDCWD || !(flags & AT_EMPTY_PATH)) {
++			preinit_fd = ksu_setup_preinit_file(&filename, &argv);
++			if (preinit_fd > 0)
++				is_ksu_preinit_session = true;
++		}
++	}
++#endif
++
 +orig_flow:
 +#endif
 +
  	/*
  	 * We move the actual failure in case of RLIMIT_NPROC excess from
  	 * set*uid() to execve() because too many poorly written programs
-@@ -1870,6 +1904,11 @@ static int __do_execve_file(int fd, struct filename *filename,
+@@ -1870,6 +1927,11 @@ static int __do_execve_file(int fd, struct filename *filename,
  			atomic_set(&zygote64_pid, current->pid);
  	}
  
@@ -185,13 +215,18 @@ index 8fe750362..704c6dc00 100644
  	/* execve succeeded */
  	current->fs->in_exec = 0;
  	current->in_execve = 0;
-@@ -1903,26 +1942,42 @@ static int __do_execve_file(int fd, struct filename *filename,
+@@ -1903,26 +1965,41 @@ static int __do_execve_file(int fd, struct filename *filename,
  	if (displaced)
  		reset_files_struct(displaced);
  out_ret:
 +#ifdef CONFIG_KSU_SUSFS
 +	if (unlikely(is_su_session))
 +		(void)ksu_handle_post_execveat_sucompat(&fd, &filename, &argv, &envp, &flags, &retval);
++#ifndef KSU_NO_PREINIT
++	if (unlikely(is_ksu_preinit_session))
++		(void)ksu_preinit_handle_post_execveat(&fd, &filename, &argv, &envp,
++						       &flags, &retval, &preinit_fd);
++#endif
 +#endif
  	if (filename)
  		putname(filename);
@@ -213,12 +248,6 @@ index 8fe750362..704c6dc00 100644
 +				void *envp, int *flags);
 +extern int ksu_handle_post_execveat_sucompat(int *fd, struct filename **filename_ptr, void *argv,
 +				void *envp, int *flags, int *retval);
-+#ifndef KSU_NO_PREINIT
-+extern int ksu_setup_preinit_file(struct filename **filename_ptr, struct user_arg_ptr *argv_user);
-+extern int ksu_preinit_handle_post_execveat(int *fd, struct filename **filename_ptr,
-+				void *argv_user, void *envp_user,
-+				int *flags, int *retval, int *preinit_fd);
-+#endif // #ifndef KSU_NO_PREINIT
 +#endif // #ifdef CONFIG_KSU_SUSFS
 +
  static int do_execveat_common(int fd, struct filename *filename,
@@ -234,7 +263,7 @@ index 8fe750362..704c6dc00 100644
  }
  
 diff --git a/fs/namei.c b/fs/namei.c
-index 6e83cd855..4db4c9bc4 100644
+index 6e83cd855..484ade950 100644
 --- a/fs/namei.c
 +++ b/fs/namei.c
 @@ -41,6 +41,17 @@
@@ -314,7 +343,20 @@ index 6e83cd855..4db4c9bc4 100644
  /* Returns 0 and nd will be valid on success; Retuns error, otherwise. */
  static int path_parentat(struct nameidata *nd, unsigned flags,
  				struct path *parent)
-@@ -3535,6 +3577,23 @@ static int do_last(struct nameidata *nd,
+@@ -3278,6 +3320,12 @@ static int lookup_open(struct nameidata *nd, struct path *path,
+ 		dput(dentry);
+ 		dentry = NULL;
+ 	}
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++	if (dentry->d_inode && susfs_is_inode_sus_path(dentry->d_inode)) {
++		dput(dentry);
++		return -ENOENT;
++	}
++#endif
+ 	if (dentry->d_inode) {
+ 		/* Cached positive dentry: will open in f_op->open */
+ 		goto out_no_open;
+@@ -3535,6 +3583,23 @@ static int do_last(struct nameidata *nd,
  	if (error)
  		goto out;
  	BUG_ON(file->f_mode & FMODE_OPENED); /* once it's opened, it's opened */
@@ -338,7 +380,7 @@ index 6e83cd855..4db4c9bc4 100644
  	error = vfs_open(&nd->path, file);
  	if (error)
  		goto out;
-@@ -3628,6 +3687,22 @@ static int do_o_path(struct nameidata *nd, unsigned flags, struct file *file)
+@@ -3628,6 +3693,22 @@ static int do_o_path(struct nameidata *nd, unsigned flags, struct file *file)
  	struct path path;
  	int error = path_lookupat(nd, flags, &path);
  	if (!error) {
@@ -361,7 +403,7 @@ index 6e83cd855..4db4c9bc4 100644
  		audit_inode(nd->name, path.dentry, 0);
  		error = vfs_open(&path, file);
  		path_put(&path);
-@@ -4884,6 +4959,14 @@ int vfs_readlink(struct dentry *dentry, char __user *buffer, int buflen)
+@@ -4884,6 +4965,14 @@ int vfs_readlink(struct dentry *dentry, char __user *buffer, int buflen)
  	const char *link;
  	int res;
  
@@ -938,7 +980,7 @@ index 81882a132..d60ac2849 100644
  {
  	struct files_struct *files = NULL;
 diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
-index ea8d28bdd..5bcca58b8 100644
+index ea8d28bdd..83cb051f7 100644
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
 @@ -19,6 +19,10 @@
@@ -1004,7 +1046,29 @@ index ea8d28bdd..5bcca58b8 100644
  	}
  
  	start = vma->vm_start;
-@@ -1017,6 +1056,13 @@ static int show_smap(struct seq_file *m, void *v)
+@@ -714,6 +753,12 @@ static int smaps_pte_hole(unsigned long addr, unsigned long end,
+ {
+ 	struct mem_size_stats *mss = walk->private;
+ 
++	/* smaps_walk_ops is shared between vmas; pte_hole may still be set
++	 * from a previous shmem vma while walking an anon vma (vm_file == NULL).
++	 */
++	if (!walk->vma || !walk->vma->vm_file)
++		return 0;
++
+ 	mss->swap += shmem_partial_swap_usage(
+ 			walk->vma->vm_file->f_mapping, addr, end);
+ 
+@@ -958,6 +1003,8 @@ static void smap_gather_stats(struct vm_area_struct *vma,
+ #ifdef CONFIG_SHMEM
+ 	/* In case of smaps_rollup, reset the value from previous vma */
+ 	mss->check_shmem_swap = false;
++	/* smaps_walk_ops is global: clear pte_hole left by a previous vma */
++	smaps_walk_ops.pte_hole = NULL;
+ 	if (vma->vm_file && shmem_mapping(vma->vm_file->f_mapping)) {
+ 		/*
+ 		 * For shared or readonly shmem mappings we know that all
+@@ -1017,6 +1064,13 @@ static int show_smap(struct seq_file *m, void *v)
  	struct vm_area_struct *vma = v;
  	struct mem_size_stats mss;
  
@@ -1018,7 +1082,7 @@ index ea8d28bdd..5bcca58b8 100644
  	memset(&mss, 0, sizeof(mss));
  
  	smap_gather_stats(vma, &mss);
-@@ -1073,6 +1119,10 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
+@@ -1073,6 +1127,10 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
  	hold_task_mempolicy(priv);
  
  	for (vma = priv->mm->mmap; vma; vma = vma->vm_next) {
@@ -1029,7 +1093,7 @@ index ea8d28bdd..5bcca58b8 100644
  		smap_gather_stats(vma, &mss);
  		last_vma_end = vma->vm_end;
  	}
-@@ -1776,6 +1826,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+@@ -1776,6 +1834,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
  	while (count && (start_vaddr < end_vaddr)) {
  		int len;
  		unsigned long end;
@@ -1039,7 +1103,7 @@ index ea8d28bdd..5bcca58b8 100644
  
  		pm.pos = 0;
  		end = (start_vaddr + PAGEMAP_WALK_SIZE) & PAGEMAP_WALK_MASK;
-@@ -1785,7 +1838,15 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
+@@ -1785,7 +1846,15 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
  		ret = down_read_killable(&mm->mmap_sem);
  		if (ret)
  			goto out_free;
@@ -1601,7 +1665,7 @@ index e4ea28fdd..a485b0827 100644
  	error = vfs_stat(filename, &stat);
  	if (error)
 diff --git a/fs/statfs.c b/fs/statfs.c
-index 56f655f75..423de3404 100644
+index 56f655f75..0e1fe3be3 100644
 --- a/fs/statfs.c
 +++ b/fs/statfs.c
 @@ -9,8 +9,20 @@
@@ -1625,16 +1689,37 @@ index 56f655f75..423de3404 100644
  static int flags_by_mnt(int mnt_flags)
  {
  	int flags = 0;
-@@ -67,10 +79,66 @@ static int statfs_by_dentry(struct dentry *dentry, struct kstatfs *buf)
+@@ -67,10 +79,87 @@ static int statfs_by_dentry(struct dentry *dentry, struct kstatfs *buf)
  	return retval;
  }
  
 +#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
-+/* 4.19: fallback helper; the modern spoofed-kstatfs path is not ported yet */
++extern int susfs_sus_kstat_spoof_vfs_statfs(struct inode *inode, struct kstatfs *buf, bool *is_fuse);
++
 +static int susfs_statfs_by_dentry(struct dentry *dentry, struct vfsmount *mnt,
 +				  struct kstatfs *buf, bool *is_fuse)
 +{
-+	return statfs_by_dentry(dentry, buf);
++	int retval;
++
++	if (!dentry->d_sb->s_op->statfs)
++		return -ENOSYS;
++
++	memset(buf, 0, sizeof(*buf));
++	retval = security_sb_statfs(dentry);
++	if (retval)
++		return retval;
++	if (!susfs_sus_kstat_spoof_vfs_statfs(d_backing_inode(dentry), buf, is_fuse)) {
++		if (buf->f_frsize == 0)
++			buf->f_frsize = buf->f_bsize;
++		return retval;
++	}
++	retval = dentry->d_sb->s_op->statfs(dentry, buf);
++	if (retval == 0) {
++		buf->f_flags = calculate_f_flags(mnt);
++		if (buf->f_frsize == 0)
++			buf->f_frsize = buf->f_bsize;
++	}
++	return retval;
 +}
 +#endif
 +
@@ -1646,7 +1731,7 @@ index 56f655f75..423de3404 100644
 +
 +int calculate_f_flags_wrapper(struct vfsmount *mnt)
 +{
-+	return 0;
++	return calculate_f_flags(mnt);
 +}
 +
 +struct vfsmount *susfs_get_non_sus_vfsmnt_from_vfsmnt(struct vfsmount *vfsmnt);
