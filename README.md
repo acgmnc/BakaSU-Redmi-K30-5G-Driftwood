@@ -8,7 +8,8 @@
 
 <p align="center">
   <strong>BakaSU + SuSFS for Redmi K30 5G (picasso)</strong><br>
-  基于 Driftwood 4.19.325-cip133，为 Redmi K30 5G 提供定制内核与内核级 Root 支持。
+  基于 4.19.325-cip133，为 Redmi K30 5G 提供定制内核与内核级 Root 支持。
+  注：已不再使用Driftwood，但名称将保留（改名太麻烦）
 </p>
 
 <p align="center">
