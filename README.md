@@ -138,7 +138,7 @@ V4.1.0 针对 Android 16 与设备驱动做了以下适配：
 
 `prebuilt/BakaSU-picasso-Driftwood-V4.1.0-ak3.zip` 为当前版本的通用 AnyKernel3 包。
 
-`boot.img` 内含各 ROM 自己的 ramdisk，不能跨 ROM 通用，因此 Release 以 AK3 与 `Image` 为主；个别 ROM 专用的 `boot.img`（如 `boot-V4.1.0-hyperos.img`，由对应原厂 boot 重打包）仅作为便利产物提供，换 ROM 后仍需重新打包：
+`boot.img` 内含各 ROM 自己的 ramdisk，不能跨 ROM 通用，因此 Release 以 AK3 与 `Image` 为主；个别 ROM 专用的 `boot.img`（如 `boot-V4.1.0-miui.img`，由对应原厂 boot 重打包）仅作为便利产物提供，换 ROM 后仍需重新打包：
 
 ~~~bash
 python3 tools/repack_boot.py stock_boot.img Image-V4.1.0 boot.img
