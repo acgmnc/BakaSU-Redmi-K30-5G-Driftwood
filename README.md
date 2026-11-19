@@ -133,10 +133,16 @@ V4.1.0 针对 Android 16 与设备驱动做了以下适配：
 
 | 发布格式 | 用途 |
 | --- | --- |
-| AnyKernel3 ZIP | 在兼容的 Recovery 中刷入；保留设备当前 ramdisk 与 dtb，适配多数 ROM |
-| `boot.img` | 通过 Fastboot 刷入；必须与当前系统及 ramdisk 匹配 |
+| AnyKernel3 ZIP | 在兼容的 Recovery 中刷入；保留设备当前 ramdisk 与 dtb，HyperOS / RisingOS / PixelOS 等 ROM 通用 |
+| `Image`（裸内核） | 用 `tools/repack_boot.py` 按目标 ROM 的原厂 boot.img 重打包，供 Fastboot 刷入 |
 
-`prebuilt/BakaSU-picasso-Driftwood-V4.1.0-ak3.zip` 为当前版本的通用 AnyKernel3 包；各 ROM 专用 `boot.img` 请从 Release 获取，或用 `tools/repack_boot.py` 按自己的原厂 boot.img 重打包。
+`prebuilt/BakaSU-picasso-Driftwood-V4.1.0-ak3.zip` 为当前版本的通用 AnyKernel3 包。
+
+`boot.img` 内含各 ROM 自己的 ramdisk，不能跨 ROM 通用，因此 Release 不再分发成品 boot.img；需要时请用目标 ROM 的原厂 boot.img 重打包：
+
+~~~bash
+python3 tools/repack_boot.py stock_boot.img Image-V4.1.0 boot.img
+~~~
 
 下载前请核对版本、设备型号和 Android 版本。
 
