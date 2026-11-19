@@ -267,7 +267,7 @@ V4.1.0 已验证 Android 14（HyperOS 2.0）、Android 16（RisingOS、PixelOS�
 - 工具链：项目记录显示 Clang 23 构建在目标设备上的稳定性较好；更换工具链后建议完整回归。
 - Ramdisk：不同 Android 版本的原厂 ramdisk 通常不可互换。
 - 内核版本伪装：仅对 uid 0 生效；依赖内核版本的 root 工具可能看到 `5.4.210`，属于预期行为。
-- Android 17 / ColorOS 17：当前伪装值为 5.4.210；日志中的 `Android 25Q4 requires kernel 5.10` 目前只是警告，若后续 ROM 将其变为硬性要求，需要调整补丁 `0010` 后重测。
+- Android 17：当前伪装值为 5.4.210；日志中的 `Android 25Q4 requires kernel 5.10` 目前只是警告，若后续 ROM 将其变为硬性要求，需要调整补丁 `0010` 后重测。
 - HyperOS 移植包：`ro.build.fingerprint` 与 `ro.vendor.build.fingerprint` 不一致导致的开机提示属 ROM 侧问题，与本内核无关。
 - SuSFS：当前版本针对 4.19 适配并启用了上表所列功能；其他功能不保证可用。
 - `OPEN_REDIRECT`：目前未覆盖 `O_TMPFILE` 路径。
