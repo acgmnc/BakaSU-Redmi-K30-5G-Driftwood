@@ -59,7 +59,7 @@
 
 **本项目仅面向 Redmi K30 5G。** 请勿将构建产物刷入其他设备；不同系统版本也应使用相匹配的镜像。
 
-> 旧版 4.19.157 (HeinUmin) 基线的构建与补丁保留在 `legacy-4.19.157` 分支，与本分支补丁不通用。
+> 旧版 4.19.157 (HeinUmin) 基线的构建与补丁保留在 `Driftwood-4.19.157` 分支，与本分支补丁不通用。
 
 ## 项目信息
 
@@ -248,7 +248,7 @@ fastboot reboot
 目前仅面向 Redmi K30 5G（`picasso`）适配，请勿刷入其他设备。
 
 **Android 14、15、16 可以使用吗？**  
-V4.1.0 已验证 Android 14（HyperOS 2.0）、Android 16（RisingOS、PixelOS）。Android 16 QPR2 及以上依赖 `0009`/`0010` 两个补丁；更旧的版本理论上也可用，但建议按系统版本选择匹配的镜像。
+V4.1.0 已验证 Android 14（HyperOS 2.0）、Android 16（RisingOS、PixelOS、HyperOS等）。Android 16 QPR2 及以上依赖 `0009`/`0010` 两个补丁；更旧的版本理论上也可用，但建议按系统版本选择匹配的镜像。
 
 **为什么 `uname -r` 显示的内核版本和系统设置里不一样？**  
 这是 V4.1.0 的刻意设计：只有 uid 0 进程（`init`、`netd`、`bpfloader` 等）看到 `5.4.210-Driftwood`，用于满足 Android 16 的 BPF 加载要求；普通应用与系统设置显示真实版本 `4.19.325-Driftwood-V4.1.0`。
