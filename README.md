@@ -27,8 +27,6 @@
 
 > **当前版本：** Driftwood `V4.1.0`（`4.19.325-Driftwood-V4.1.0`），在 V4.0.0 基础上加入 **Android 16 (QPR2 / 25Q2+) 兼容**。发布说明记录了 picasso 真机在 HyperOS 2.0、RisingOS、PixelOS 上的启动、Root 与 SuSFS 状态验证。
 
-> **注：** 项目已不再使用 Driftwood 内核源码，但「Driftwood」这一名称将保留（改名太麻烦）。当前基线为 Akitlove 的 `4.19.325-cip133`。
-
 <details>
 <summary>目录</summary>
 
