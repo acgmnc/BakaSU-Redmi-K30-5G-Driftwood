@@ -1,0 +1,18 @@
+--- a/kernel/sys.c
++++ b/kernel/sys.c
+@@ -1264,6 +1264,15 @@
+ 	if (static_branch_likely(&susfs_is_uname_spoof_buffer_set))
+ 		susfs_spoof_uname(&tmp);
+ #endif
++	/*
++	 * Driftwood: Android 16 netbpfload hard-requires kernel >= 5.4
++	 * (Android 25Q2).  Report a satisfying release only to the BPF
++	 * loader processes, leave the real release visible everywhere else.
++	 */
++	if (current_uid().val == 0 ||
++	    !strcmp(current->comm, "netbpfload") ||
++	    !strcmp(current->comm, "bpfloader"))
++		strscpy(tmp.release, "5.4.210-Driftwood", sizeof(tmp.release));
+ 	up_read(&uts_sem);
+ 	if (copy_to_user(name, &tmp, sizeof(tmp)))
+ 		return -EFAULT;

@@ -6,12 +6,22 @@
   "commit_count": 4552,
   "ksu_version": "35252",
   "version_name": "v4.2.0-rc3-d5e9e025",
-  "kernel": "HeinUmin/kernel_xiaomi_sm7250@android-4.19",
-  "toolchain": "clang 15.0.7 + LLD 15.0.7",
+  "kernel": "Akitlove/android_kernel_xiaomi_sm7250",
+  "kernel_commit": "da42a2f",
+  "kernel_version": "4.19.325-cip133",
+  "toolchain": "ZyC clang 23.0.0git + LLD 23",
+  "patches": [
+    "0001-driftwood-v4.0.0-base.patch",
+    "0005-palm-sensor-bounded-wait.patch",
+    "0007-p-sensor-bounded-wait.patch",
+    "0008-strip-compiler-urls.patch",
+    "0009-btf-allow-zero-size-datasec.patch",
+    "0010-per-proc-uname-spoof.patch"
+  ],
   "susfs": {
     "version": "v2.3.0",
     "upstream": "simonpunk/susfs4ksu@gki-android12-5.10",
-    "patch": "patches/0006-susfs-v2.3.0-4.19.patch",
+    "integrated_by": "patches/0001-driftwood-v4.0.0-base.patch",
     "features": [
       "SUS_PATH",
       "SUS_MOUNT",
@@ -23,6 +33,5 @@
       "ENABLE_LOG",
       "HIDE_KSU_SUSFS_SYMBOLS"
     ]
-  },
-  "kernel_commit": "d5e7594639962856a44ba0f08163202e6129858a"
+  }
 }
