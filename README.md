@@ -125,7 +125,7 @@ V4.1.0 针对 Android 16 与设备驱动做了以下适配：
 | `0009-btf-allow-zero-size-datasec.patch` | 允许零长度 `DATASEC`，修复 Android 16 的 `BPF_BTF_LOAD` 失败 |
 | `0010-per-proc-uname-spoof.patch` | 仅 uid 0 进程报告 `5.4.210`，兼容 Android 16 的 `netbpfload` / `netd` |
 
-`legacy-4.19.157` 分支保留旧的 `0002`–`0006` 补丁（4.19.157 树专用），**不要**与本分支的补丁混用。
+`Driftwood-4.19.157` 分支保留旧的 `0002`–`0006` 补丁（4.19.157 树专用），**不要**与本分支的补丁混用。
 
 ## 下载
 
