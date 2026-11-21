@@ -14,10 +14,10 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Device-Redmi%20K30%205G-blue?style=flat-square" alt="Device">
-  <img src="https://img.shields.io/badge/Kernel-4.19.325--cip135--st19-green?style=flat-square" alt="Kernel">
+  <img src="https://img.shields.io/badge/4.19.325-Driftwood-V4.2.0-green?style=flat-square" alt="Kernel">
   <img src="https://img.shields.io/badge/Root-BakaSU-red?style=flat-square" alt="Root">
   <img src="https://img.shields.io/badge/SuSFS-v2.3.0-8A2BE2?style=flat-square" alt="SuSFS">
-  <img src="https://img.shields.io/badge/Android-14%20~%2017-orange?style=flat-square" alt="Android">
+  <img src="https://img.shields.io/badge/Android-11%20~%2017-orange?style=flat-square" alt="Android">
 </p>
 
 > **当前版本：** Driftwood `V4.2.0`（`4.19.325-Driftwood-V4.2.0`），基线切换为 Akitlove `susfs-miui`（`4.19.325-cip135-st19`），**支持 Android 17（HyperOS 4 / OS4.0.0.16）**。
