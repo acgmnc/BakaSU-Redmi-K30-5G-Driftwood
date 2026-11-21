@@ -20,7 +20,7 @@
   <img src="https://img.shields.io/badge/Android-11%20~%2017-orange?style=flat-square" alt="Android">
 </p>
 
-> **当前版本：** Driftwood `V4.2.0`（`4.19.325-Driftwood-V4.2.0`），基线切换为 Akitlove `susfs-miui`（`4.19.325-cip135-st19`），**支持 Android 17（HyperOS 4 / OS4.0.0.16）**。
+> **当前版本：** Driftwood `V4.2.0`（`4.19.325-Driftwood-V4.2.0`），基线切换为 Akitlove `susfs-miui`（`4.19.325-cip135-st19`），**支持 Android 17**。
 
 > **旧基线已移除：** 4.19.157（HeinUmin）线与 V4.1.0（cip133-st17）线不再维护，相关分支与补丁已删除。
 
@@ -50,7 +50,7 @@
 
 - 将 BakaSU 35252（`v4.2.0-rc3`）集成到该基线；
 - 将 SuSFS 从树内自带的 2.2.0 升级为 **2.3.0**（与 BakaSU 的 API 匹配）：替换 `fs/susfs.c`、`include/linux/susfs*.h` 及 6 个 VFS hook 文件，并补 `statfs_by_dentry_wrapper` / `calculate_f_flags_wrapper`；
-- 修复 HyperOS「内核版本 Unavailable」：`scripts/mkcompile_h` 去掉编译串里的 URL 括号（`patches/0008`）；
+- 修复系统关于页「内核版本 Unavailable」：`scripts/mkcompile_h` 去掉编译串里的 URL 括号（`patches/0008`）；
 - 内核版本串改为 `4.19.325-Driftwood-V4.2.0`；
 - 提供 A17 专用 boot.img 与自动化构建脚本。
 
@@ -69,7 +69,7 @@
 | Root | BakaSU `v4.2.0-rc3-d5e9e025`（version code `35252`） |
 | SuSFS | `v2.3.0` |
 | 工具链 | ZyC Clang 23.0.0git + LLD 23 |
-| 已验证系统 | HyperOS 4 / OS4.0.0.16（Android 17），HyperOS 2.0（Android 14） |
+| 已验证系统 | Android 17、Android 14 |
 
 ## 功能特性
 
@@ -119,7 +119,8 @@ Kernel panic - not syncing: Fatal exception in interrupt
 
 | 文件 | 说明 |
 | --- | --- |
-| `prebuilt/boot-a17-Driftwood-V4.2.0.img` | A17（HyperOS 4）专用 boot.img（gzip 内核 + 原厂 ramdisk/dtb） |
+| `prebuilt/boot-a17-Driftwood-V4.2.0.img` | Android 17 专用 boot.img（gzip 内核 + 原厂 ramdisk/dtb） |
+| `prebuilt/BakaSU-picasso-Driftwood-V4.2.0-ak3.zip` | AnyKernel3 包：Recovery 刷入，只替换内核（`Image.gz`），不含 dtb/dtbo |
 | `prebuilt/`（Release） | 同版本镜像与校验 |
 
 `boot.img` 内含特定 ROM 的 ramdisk，不能跨 ROM 通用；其它 ROM 请用对应原厂 boot.img + `Image` 重打包：
@@ -156,14 +157,14 @@ BOOT_IMG=stock_boot.img ./build.sh   # 顺便重打包 boot
 
 ## 刷入说明
 
-### A17（HyperOS 4）
+### Android 17
 
 ```bash
 fastboot flash boot prebuilt/boot-a17-Driftwood-V4.2.0.img
 fastboot reboot
 ```
 
-> 该镜像是从 A17 原厂 boot 重打包（保留原厂 ramdisk/dtb，内核 gzip 压缩，cmdline 追加 `ramoops_memreserve=4M`），**只适用于 OS4.0.0.16 这一版**。
+> 该镜像是从 A17 原厂 boot 重打包（保留原厂 ramdisk/dtb，内核 gzip 压缩，cmdline 追加 `ramoops_memreserve=4M`），**只适用于对应原厂 boot 的 ROM 版本**。
 
 ### 其它系统
 
@@ -179,7 +180,7 @@ BakaSU / ReSukiSU 管理器，包名 `com.resukisu.resukisu`，`arm64-v8a`，版
 按设计：只有 `bpfloader`/`netbpfload`/`netd`/`uprobestats` 被伪装，其它进程看真实版本。
 
 **支持哪些 Android 版本？**  
-A17（HyperOS 4）已实机验证；A14（HyperOS 2.0）同样可用；其它版本请自测并备份原厂 boot。
+Android 17 已实机验证；Android 14 同样可用；其它版本请自测并备份原厂 boot。
 
 **为什么不做 AK3？**  
 A17 的 boot 内核是 gzip 压缩，且该设备有 `vendor_boot` 分区，AK3 的自动布局容易把 `Image` 移走而不替换内核（还曾误刷 dtbo）。当前直接提供重打包好的 boot.img。
