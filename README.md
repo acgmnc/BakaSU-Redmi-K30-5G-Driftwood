@@ -20,7 +20,7 @@
   <img src="https://img.shields.io/badge/Android-14%20~%2017-orange?style=flat-square" alt="Android">
 </p>
 
-> **当前版本：** Driftwood `V4.2.0`（`4.19.325-Driftwood-V4.2.0`），基线切换为 Akitlove `susfs-miui`（`4.19.325-cip135-st19`），**首次支持 Android 17（HyperOS 4 / OS4.0.0.16）**，Wi‑Fi 正常。
+> **当前版本：** Driftwood `V4.2.0`（`4.19.325-Driftwood-V4.2.0`），基线切换为 Akitlove `susfs-miui`（`4.19.325-cip135-st19`），**支持 Android 17（HyperOS 4 / OS4.0.0.16）**。
 
 > **旧基线已移除：** 4.19.157（HeinUmin）线与 V4.1.0（cip133-st17）线不再维护，相关分支与补丁已删除。
 
@@ -102,7 +102,6 @@
 
 | 基线 | 版本 | A17 表现 |
 | --- | --- | --- |
-| `325167d`（A17 原厂，st18 精确提交） | `cip134-st18` | ✅ 正常，但需从零移植 SuSFS |
 | **`susfs-miui`（本项目采用）** | `cip135-st19` | ✅ **正常**，且自带 SuSFS 集成（升级到 2.3.0 即可） |
 | `ksu-miui-new` | `cip136-st20` | ❌ 约 80–100 秒后在 binder/timer 路径 kernel panic（**纯内核也复现**，与本项目移植无关） |
 
