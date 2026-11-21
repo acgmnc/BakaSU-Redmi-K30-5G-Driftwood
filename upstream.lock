@@ -3,25 +3,16 @@
   "repo": "Baka-SU/BakaSU",
   "branch": "main",
   "commit": "d5e9e025b8b49155f8014684d64c91742b465f65",
-  "commit_count": 4552,
-  "ksu_version": "35252",
   "version_name": "v4.2.0-rc3-d5e9e025",
+  "ksu_version": "35252",
   "kernel": "Akitlove/android_kernel_xiaomi_sm7250",
-  "kernel_commit": "da42a2f",
-  "kernel_version": "4.19.325-cip133",
+  "kernel_branch": "susfs-miui",
+  "kernel_version": "4.19.325-cip135-st19",
+  "kernel_release_string": "4.19.325-Driftwood-V4.2.0",
   "toolchain": "ZyC clang 23.0.0git + LLD 23",
-  "patches": [
-    "0001-driftwood-v4.0.0-base.patch",
-    "0005-palm-sensor-bounded-wait.patch",
-    "0007-p-sensor-bounded-wait.patch",
-    "0008-strip-compiler-urls.patch",
-    "0009-btf-allow-zero-size-datasec.patch",
-    "0010-per-proc-uname-spoof.patch"
-  ],
   "susfs": {
     "version": "v2.3.0",
-    "upstream": "simonpunk/susfs4ksu@gki-android12-5.10",
-    "integrated_by": "patches/0001-driftwood-v4.0.0-base.patch",
+    "files": "susfs-2.3.0-files.tar.gz",
     "features": [
       "SUS_PATH",
       "SUS_MOUNT",
@@ -33,5 +24,12 @@
       "ENABLE_LOG",
       "HIDE_KSU_SUSFS_SYMBOLS"
     ]
-  }
+  },
+  "patches": [
+    "patches/0008-strip-compiler-urls.patch"
+  ],
+  "verified": [
+    "HyperOS 4 / OS4.0.0.16 (Android 17)",
+    "HyperOS 2.0 (Android 14)"
+  ]
 }
