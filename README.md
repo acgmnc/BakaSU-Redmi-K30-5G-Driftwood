@@ -121,6 +121,7 @@ Kernel panic - not syncing: Fatal exception in interrupt
 | --- | --- |
 | `prebuilt/boot-a17-Driftwood-V4.2.0.img` | Android 17 专用 boot.img（gzip 内核 + 原厂 ramdisk/dtb） |
 | `prebuilt/BakaSU-picasso-Driftwood-V4.2.0-ak3.zip` | AnyKernel3 包：Recovery 刷入，只替换内核（`Image.gz`），不含 dtb/dtbo |
+| `prebuilt/SukiSU-SKP014-KPM-ak3.zip` | **SukiSU Nova 版** AK3：SukiSU Nova + KernelPatch(KPM) + SuSFS 2.3.0（实验，见 [SukiSU Nova 版](#sukisu-nova-版实验kpm)） |
 | `prebuilt/`（Release） | 同版本镜像与校验 |
 
 `boot.img` 内含特定 ROM 的 ramdisk，不能跨 ROM 通用；其它 ROM 请用对应原厂 boot.img + `Image` 重打包：
@@ -128,6 +129,22 @@ Kernel panic - not syncing: Fatal exception in interrupt
 ```bash
 python3 tools/repack_boot.py stock_boot.img Image out.img
 ```
+
+## SukiSU Nova 版（实验，KPM）
+
+`main` 是 **BakaSU 35252** 稳定线；另有一个 **SukiSU Nova** 实验分支 `sukisu-nova`：
+
+| 项 | 内容 |
+| --- | --- |
+| Root | SukiSU Nova（`builtin` + ARM64 branch-link，无需手动 hook） |
+| KernelPatch | SukiSU 定制 KP **0.14.0**（`kpimg` 镜像注入） |
+| KPM | **可用**（实测加载 `hello.kpm` 成功） |
+| SuSFS | 2.3.0（含 2.4 API 兼容 shim） |
+| 内核版本串 | `4.19.325-Driftwood-V4.2.0` |
+
+> 注意：KPM 必须用 **SukiSU 定制版 KernelPatch**（`SukiSU-Nova/SukiSU_KernelPatch_patch`），官方 KernelPatch 不认 KPM supercall magic，管理器会显示「不支持」；并且 `kpimg` 必须用 **ARM 裸机工具链**从源码编译（release 的 0.11-beta 太旧，没有 KPM ABI v2）。
+
+构建与刷入细节见分支内 [`SUKISU-NOVA.md`](https://github.com/acgmnc/BakaSU-Redmi-K30-5G-Driftwood/blob/sukisu-nova/SUKISU-NOVA.md)，AK3 见上方下载表。
 
 ## 构建指南
 
