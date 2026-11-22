@@ -239,9 +239,13 @@ A17 的 boot 内核是 gzip 压缩，且该设备有 `vendor_boot` 分区，AK3 
 ## 致谢与许可证
 
 - [Akitlove/android_kernel_xiaomi_sm7250](https://github.com/Akitlove/android_kernel_xiaomi_sm7250)
+- **SukiSU Nova**：[SukiSU-Nova/SukiSU-Nova](https://github.com/SukiSU-Nova/SukiSU-Nova)（Root 本体）
+- **SukiSU KernelPatch**：[SukiSU-Nova/SukiSU_KernelPatch_patch](https://github.com/SukiSU-Nova/SukiSU_KernelPatch_patch)（定制 KernelPatch，KPM ABI v2）
+- [bmax121/KernelPatch](https://github.com/bmax121/KernelPatch)（KernelPatch 上游）
 - [HeinUmin/kernel_xiaomi_sm7250](https://github.com/HeinUmin/kernel_xiaomi_sm7250)（历史基线）
-- [Baka-SU/BakaSU](https://github.com/Baka-SU/BakaSU)
+- [Baka-SU/BakaSU](https://github.com/Baka-SU/BakaSU)（`main` 稳定线）
 - [simonpunk/susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu)
+- [osm0sis/AnyKernel3](https://github.com/osm0sis/AnyKernel3)（AK3 模板）
 - 社区测试者
 
 内核主体及第三方组件遵循各自源码目录中的许可证。
