@@ -1,21 +1,23 @@
-# BakaSU × Driftwood
+# SukiSU Nova × Driftwood
 
 <p align="center"><strong>更纯粹的内核 · A More Pure Kernel</strong></p>
 
 <p align="center">
-  <img src="assets/banner.png" alt="BakaSU × Driftwood" width="100%">
+  <img src="assets/banner.png" alt="SukiSU Nova × Driftwood" width="100%">
 </p>
 
 <p align="center">
-  <strong>BakaSU + SuSFS for Redmi K30 5G (picasso)</strong><br>
-  基于 Akitlove <code>susfs-miui</code>（Linux 4.19.325-cip135-st19），为 Redmi K30 5G 提供定制内核与内核级 Root 支持。<br>
+  <strong>SukiSU Nova + KernelPatch(KPM) + SuSFS for Redmi K30 5G (picasso)</strong><br>
+  基于 Akitlove <code>susfs-miui</code>（Linux 4.19.325-cip135-st19），为 Redmi K30 5G 提供 SukiSU Nova Root、SuSFS 隐藏与 KPM 模块支持。<br>
   <em>注：已不再使用 Driftwood 内核源码，但名称保留（改名太麻烦）。</em>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Device-Redmi%20K30%205G-blue?style=flat-square" alt="Device">
   <img src="https://img.shields.io/badge/4.19.325-Driftwood-V4.2.0-green?style=flat-square" alt="Kernel">
-  <img src="https://img.shields.io/badge/Root-BakaSU-red?style=flat-square" alt="Root">
+  <img src="https://img.shields.io/badge/Root-SukiSU%20Nova-red?style=flat-square" alt="Root">
+  <img src="https://img.shields.io/badge/KernelPatch-0.14-8A2BE2?style=flat-square" alt="KernelPatch">
+  <img src="https://img.shields.io/badge/KPM-supported-success?style=flat-square" alt="KPM">
   <img src="https://img.shields.io/badge/SuSFS-v2.3.0-8A2BE2?style=flat-square" alt="SuSFS">
   <img src="https://img.shields.io/badge/Android-11%20~%2017-orange?style=flat-square" alt="Android">
 </p>
@@ -50,8 +52,9 @@
 
 主要工作：
 
-- 将 BakaSU 35252（`v4.2.0-rc3`）集成到该基线；
-- 将 SuSFS 从树内自带的 2.2.0 升级为 **2.3.0**（与 BakaSU 的 API 匹配）：替换 `fs/susfs.c`、`include/linux/susfs*.h` 及 6 个 VFS hook 文件，并补 `statfs_by_dentry_wrapper` / `calculate_f_flags_wrapper`；
+- 将 **SukiSU Nova**（`builtin` 模式 + ARM64 branch-link，无需手动 hook）集成到该基线；
+- 将 SuSFS 从树内自带的 2.2.0 升级为 **2.3.0**（与 SukiSU 的 API 匹配）：替换 `fs/susfs.c`、`include/linux/susfs*.h` 及 6 个 VFS hook 文件，并补 `statfs_by_dentry_wrapper` / `calculate_f_flags_wrapper`；
+- 集成 **KernelPatch 0.14**（SukiSU 定制版）并打通 **KPM**：`kpimg` 镜像注入 + `kptools -p`，实测可加载模块；
 - 修复系统关于页「内核版本 Unavailable」：`scripts/mkcompile_h` 去掉编译串里的 URL 括号（`patches/0008`）；
 - 内核版本串改为 `4.19.325-Driftwood-V4.2.0`；
 - 提供 A17 专用 boot.img 与自动化构建脚本。
@@ -160,9 +163,11 @@ Ubuntu / WSL2 Ubuntu，ZyC Clang 23 + LLD 23（`TC=` 可指定），`curl`、`py
 ### 开始构建
 
 ```bash
-./build.sh                      # 下载 susfs-miui → 装 BakaSU → 解压 SuSFS 2.3.0 → 补丁 → 编译
+./scripts/build-sukisu-nova.sh  # SukiSU Nova 版：susfs-miui → SukiSU Nova → SuSFS 2.3.0 → 编译
+./scripts/patch-kpimg.sh out/Image-sukisu-nova   # 注入 KernelPatch + 打 AK3
+./build.sh                      # （旧）BakaSU 线构建脚本，保留作参考
 KSRC=/path/to/tree ./build.sh   # 复用现成树
-BOOT_IMG=stock_boot.img ./build.sh   # 顺便重打包 boot
+KSRC=/path/to/tree ./scripts/build-sukisu-nova.sh   # 复用现成树
 ```
 
 构建脚本做的事：
@@ -181,7 +186,7 @@ BOOT_IMG=stock_boot.img ./build.sh   # 顺便重打包 boot
 
 ```bash
 # AK3（Recovery 刷机包；内部会 gzip 成 Image.gz，不含 dtb/dtbo）
-./scripts/pack-ak3.sh out/Image out/BakaSU-picasso-Driftwood-V4.2.0-ak3.zip
+./scripts/pack-ak3.sh out/Image-sukisu-nova out/SukiSU-KP-KPM-ak3.zip
 
 # boot.img（从原厂 boot 重打包；内核 gzip，保留 ramdisk/dtb，cmdline 追加 ramoops_memreserve=4M）
 python3 scripts/pack-boot.py stock_boot.img out/Image out/boot.img
@@ -204,7 +209,7 @@ fastboot reboot
 
 ## 管理器
 
-BakaSU / ReSukiSU 管理器，包名 `com.resukisu.resukisu`，`arm64-v8a`，版本 `v4.2.0-rc3`。管理器 APK 不由本仓库构建。
+**SukiSU Nova** 管理器，包名 `com.sukisu.nova`，`arm64-v8a`。管理器 APK 不由本仓库构建；KPM 模块放在 `/data/adb/kpm/`。
 
 ## 常见问题
 
