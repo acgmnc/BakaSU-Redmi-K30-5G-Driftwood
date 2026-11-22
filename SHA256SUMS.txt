@@ -1,3 +1,6 @@
 16279eaf8fa58a9b35abfca7be7e694f4b59348f5416fd37c37ca1a30379aa55  prebuilt/BakaSU-picasso-Driftwood-V4.2.0-ak3.zip
 a87b165a853346ee84cf784646b07ad13463f9ac29a7641a67a6d70fdf850191  prebuilt/boot-a17-Driftwood-V4.2.0.img
+cab317bb5c3ede5c7ff655c02b654964bfa25337448e00755e8c8ce00e8cd080  prebuilt/sukisu-nova-kernel-src.tar.gz
+8d5ff19faf94aed218fbd3df3769023ec17a67457cf7e94f036890f1107f21fa  prebuilt/SukiSU-SKP014-KPM-ak3.zip
 cd01e9aab4bce86e64d61adaa26068a3ed159555c9a52b5141395b1a5272c3e8  susfs-2.3.0-files.tar.gz
+6204b29b29b137494a785014cccdbbf5c34e0548a2b29e399000d5592252fa51  driftwood-v4.2.0-sukisu.config
