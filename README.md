@@ -155,6 +155,16 @@ BOOT_IMG=stock_boot.img ./build.sh   # 顺便重打包 boot
 
 产物在 `out/Image`（可选 `out/boot.img`）。
 
+### 打包镜像
+
+```bash
+# AK3（Recovery 刷机包；内部会 gzip 成 Image.gz，不含 dtb/dtbo）
+./scripts/pack-ak3.sh out/Image out/BakaSU-picasso-Driftwood-V4.2.0-ak3.zip
+
+# boot.img（从原厂 boot 重打包；内核 gzip，保留 ramdisk/dtb，cmdline 追加 ramoops_memreserve=4M）
+python3 scripts/pack-boot.py stock_boot.img out/Image out/boot.img
+```
+
 ## 刷入说明
 
 ### Android 17
