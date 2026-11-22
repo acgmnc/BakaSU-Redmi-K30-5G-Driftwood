@@ -58,6 +58,10 @@ grep -q 'kernelsu' "$KSRC/drivers/Makefile" || printf '\nobj-$(CONFIG_KSU) += ke
 grep -q 'drivers/kernelsu/Kconfig' "$KSRC/drivers/Kconfig" || \
   sed -i '/^endmenu/i source "drivers/kernelsu/Kconfig"' "$KSRC/drivers/Kconfig"
 
+# SukiSU reports "unknown@unknown" when built without .git; use our own tag.
+sed -i 's|v$(VERSION_TAG)-$(REPO_NAME)-unknown@unknown|v$(VERSION_TAG)-$(REPO_NAME)@wuyu|' \
+  "$KSRC/drivers/kernelsu/Makefile"
+
 msg "install SuSFS 2.3.0 files"
 tar -xzf "$ROOT/susfs-2.3.0-files.tar.gz" -C "$KSRC"
 
