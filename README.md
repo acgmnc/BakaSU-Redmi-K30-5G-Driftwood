@@ -52,7 +52,7 @@
 - 将 SuSFS 从树内自带的 2.2.0 升级为 **2.3.0**（与 BakaSU 的 API 匹配）：替换 `fs/susfs.c`、`include/linux/susfs*.h` 及 6 个 VFS hook 文件，并补 `statfs_by_dentry_wrapper` / `calculate_f_flags_wrapper`；
 - 修复系统关于页「内核版本 Unavailable」：`scripts/mkcompile_h` 去掉编译串里的 URL 括号（`patches/0008`）；
 - 内核版本串改为 `4.19.325-Driftwood-V4.2.0`；
-- 提供 A17 专用 boot.img 与自动化构建脚本。
+- 提供 AnyKernel3 刷机包与自动化构建脚本。
 
 **本项目仅面向 Redmi K30 5G。**
 
@@ -119,16 +119,11 @@ Kernel panic - not syncing: Fatal exception in interrupt
 
 | 文件 | 说明 |
 | --- | --- |
-| `prebuilt/boot-a17-Driftwood-V4.2.0.img` | Android 17 专用 boot.img（gzip 内核 + 原厂 ramdisk/dtb） |
 | `prebuilt/BakaSU-picasso-Driftwood-V4.2.0-ak3.zip` | AnyKernel3 包：Recovery 刷入，只替换内核（`Image.gz`），不含 dtb/dtbo |
 | `prebuilt/SukiSU-SKP014-KPM-ak3.zip` | **SukiSU Nova 版** AK3：SukiSU Nova + KernelPatch(KPM) + SuSFS 2.3.0（实验，见 [SukiSU Nova 版](#sukisu-nova-版实验kpm)） |
-| `prebuilt/`（Release） | 同版本镜像与校验 |
+| `prebuilt/`（Release） | 同版本 AK3 与校验 |
 
-`boot.img` 内含特定 ROM 的 ramdisk，不能跨 ROM 通用；其它 ROM 请用对应原厂 boot.img + `Image` 重打包：
-
-```bash
-python3 tools/repack_boot.py stock_boot.img Image out.img
-```
+AK3 只替换内核、保留当前 ROM 的 ramdisk/dtb，可跨 ROM 使用。本项目**不再提供成品 boot.img**；如确需自行重打包，可用 `tools/repack_boot.py` 从对应原厂 boot 生成（自用，不在支持范围内）。
 
 ## SukiSU Nova 版（实验，KPM）
 
@@ -184,18 +179,16 @@ python3 scripts/pack-boot.py stock_boot.img out/Image out/boot.img
 
 ## 刷入说明
 
-### Android 17
+### 刷入（AK3）
 
-```bash
-fastboot flash boot prebuilt/boot-a17-Driftwood-V4.2.0.img
-fastboot reboot
-```
+Recovery（OrangeFox）→ Install → 选择对应 AK3 → 重启。
 
-> 该镜像是从 A17 原厂 boot 重打包（保留原厂 ramdisk/dtb，内核 gzip 压缩，cmdline 追加 `ramoops_memreserve=4M`），**只适用于对应原厂 boot 的 ROM 版本**。
+| 版本 | AK3 |
+| --- | --- |
+| BakaSU 稳定版 | `prebuilt/BakaSU-picasso-Driftwood-V4.2.0-ak3.zip` |
+| SukiSU Nova 版 | `prebuilt/SukiSU-SKP014-KPM-ak3.zip` |
 
-### 其它系统
-
-用对应 ROM 的原厂 boot.img + 本项目的 `Image` 重打包后刷入，或等待后续 AK3。
+> AK3 会 dump 当前 boot、只替换内核，保留原 ROM 的 ramdisk/dtb 与 cmdline，因此跨 ROM 更安全。
 
 ## 管理器
 
@@ -209,8 +202,8 @@ BakaSU / ReSukiSU 管理器，包名 `com.resukisu.resukisu`，`arm64-v8a`，版
 **支持哪些 Android 版本？**  
 Android 17 已实机验证；Android 14 同样可用；其它版本请自测并备份原厂 boot。
 
-**为什么不做 AK3？**  
-A17 的 boot 内核是 gzip 压缩，且该设备有 `vendor_boot` 分区，AK3 的自动布局容易把 `Image` 移走而不替换内核（还曾误刷 dtbo）。当前直接提供重打包好的 boot.img。
+**为什么只提供 AK3、不提供 boot.img？**
+boot.img 绑定特定 ROM 的 ramdisk/dtb，刷错分区或跨 ROM 使用容易无法开机；AK3 只替换内核、保留当前 ROM 的 ramdisk/dtb，更安全也更通用，因此本项目只发布 AK3。
 
 ## 已知限制
 
