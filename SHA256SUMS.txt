@@ -1,3 +1,3 @@
 16279eaf8fa58a9b35abfca7be7e694f4b59348f5416fd37c37ca1a30379aa55  prebuilt/BakaSU-picasso-Driftwood-V4.2.0-ak3.zip
-c8db2be081bd09303a8c1d00f3514e825f42e48d311a7416489d5292aefaccd8  prebuilt/SukiSU-SKP014-KPM-ak3.zip
+4ca01cbd13f414d6d0f3fc7bc70ad7db46bc21e4ff10fe438ac983746c3effb8  prebuilt/SukiSU-SKP014-KPM-ak3.zip
 cd01e9aab4bce86e64d61adaa26068a3ed159555c9a52b5141395b1a5272c3e8  susfs-2.3.0-files.tar.gz
