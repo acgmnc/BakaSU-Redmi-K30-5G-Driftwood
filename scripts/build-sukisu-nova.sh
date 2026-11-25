@@ -126,6 +126,46 @@ int calculate_f_flags_wrapper(struct vfsmount *mnt)
 print('shims ok')
 PY
 
+msg "sepolicy tolerance (skip rules for types/classes absent in this ROM)"
+python3 - "$KSRC" <<'PY'
+import io, sys
+K = sys.argv[1] + '/drivers/kernelsu/selinux'
+p = K + '/sepolicy.c'
+s = io.open(p, encoding='utf-8').read()
+pairs = [
+ ('pr_info("source type %s does not exist\\n", s);\n\t\t\treturn false;',
+  'pr_debug("source type %s does not exist\\n", s);\n\t\t\treturn true;'),
+ ('pr_info("target type %s does not exist\\n", t);\n\t\t\treturn false;',
+  'pr_debug("target type %s does not exist\\n", t);\n\t\t\treturn true;'),
+ ('pr_info("class %s does not exist\\n", c);\n\t\t\treturn false;',
+  'pr_debug("class %s does not exist\\n", c);\n\t\t\treturn true;'),
+ ('pr_info("perm %s does not exist in class %s\\n", p, c);\n\t\t\treturn false;',
+  'pr_debug("perm %s does not exist in class %s\\n", p, c);\n\t\t\treturn true;'),
+]
+for a, b in pairs:
+    if a in s:
+        s = s.replace(a, b, 1)
+io.open(p, 'w', encoding='utf-8', newline='\n').write(s)
+p = K + '/selinux.c'
+s = io.open(p, encoding='utf-8').read()
+old = """\terr = security_secctx_to_secid(secctx_name, strlen(secctx_name), out_sid);
+\tif (err) {
+\t\tpr_err("failed setting sid for '%s', err: %d\\n", secctx_name, err);
+\t\treturn;
+\t}"""
+new = """\terr = security_secctx_to_secid(secctx_name, strlen(secctx_name), out_sid);
+\tif (err) {
+\t\tif (err == -EINVAL)
+\t\t\tpr_debug("sid for '%s' not present in this policy, skip\\n", secctx_name);
+\t\telse
+\t\t\tpr_err("failed setting sid for '%s', err: %d\\n", secctx_name, err);
+\t\treturn;
+\t}"""
+if old in s:
+    s = s.replace(old, new, 1)
+io.open(p, 'w', encoding='utf-8', newline='\n').write(s)
+PY
+
 msg "force KPM on 4.19"
 sed -i 's/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)/#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)/' \
   "$KSRC/drivers/kernelsu/kernel_compat.h"
